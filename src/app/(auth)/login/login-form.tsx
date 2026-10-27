@@ -44,7 +44,11 @@ export function LoginForm() {
       setError(null);
       const result = await authClient.signIn.passkey();
       if (result?.error) {
-        setError(passkeyErrorMessage(result.error));
+        // The usual cause is simply that no passkey exists yet on this device:
+        // the browser only says "something went wrong", so point to the way in.
+        setError(
+          `${passkeyErrorMessage(result.error)} Pas encore de passkey sur cet appareil ? Connecte-toi avec ton mot de passe ci-dessous, puis ajoutes-en une dans Réglages → Sécurité.`,
+        );
         return;
       }
       finish();

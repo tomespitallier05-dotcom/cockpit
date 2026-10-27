@@ -52,7 +52,9 @@ export function SetupForm() {
       setError(null);
       const result = await authClient.passkey.addPasskey({ name: "Appareil principal" });
       if (result?.error) {
-        setError(passkeyErrorMessage(result.error));
+        setError(
+          `${passkeyErrorMessage(result.error)} Tu peux réessayer, ou continuer et l'ajouter plus tard dans Réglages → Sécurité.`,
+        );
         return;
       }
       enterApp();
