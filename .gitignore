@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local embedded database (PGlite)
+/.pglite
+
+# env files: .env.example is the documented template
+!.env.example
