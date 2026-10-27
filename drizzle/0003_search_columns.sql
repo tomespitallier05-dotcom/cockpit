@@ -1,0 +1,4 @@
+ALTER TABLE "entry" ADD COLUMN "search" "tsvector" GENERATED ALWAYS AS (setweight(to_tsvector('french'::regconfig, public.cockpit_unaccent(coalesce("title", ''))), 'A') || setweight(to_tsvector('french'::regconfig, public.cockpit_unaccent(coalesce("plain_text", ''))), 'B')) STORED;--> statement-breakpoint
+ALTER TABLE "task" ADD COLUMN "search" "tsvector" GENERATED ALWAYS AS (setweight(to_tsvector('french'::regconfig, public.cockpit_unaccent(coalesce("title", ''))), 'A') || setweight(to_tsvector('french'::regconfig, public.cockpit_unaccent(coalesce("description", ''))), 'B')) STORED;--> statement-breakpoint
+CREATE INDEX "entry_search_idx" ON "entry" USING gin ("search");--> statement-breakpoint
+CREATE INDEX "task_search_idx" ON "task" USING gin ("search");

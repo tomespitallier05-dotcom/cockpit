@@ -53,7 +53,7 @@ function MobileNavView({ pathname }: { pathname: string | null }) {
         <div className="flex items-center justify-center">
           <button
             type="button"
-            onClick={capture}
+            onClick={() => capture()}
             aria-label="Capturer"
             className="flex size-12 items-center justify-center rounded-2xl bg-[linear-gradient(145deg,#6d98ff,#4a6fe0)] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_8px_24px_-6px_rgb(91_140_255/0.7)] transition-transform active:scale-95"
           >

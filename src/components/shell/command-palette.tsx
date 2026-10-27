@@ -1,8 +1,10 @@
 "use client";
 
 import { defaultFilter } from "cmdk";
-import { LogOutIcon, ZapIcon } from "lucide-react";
+import { CheckCircle2Icon, CircleIcon, FolderPlusIcon, ListTodoIcon, LogOutIcon, Loader2Icon, UserPlusIcon, UserIcon, ZapIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { entryTypeIcon } from "@/components/entry-type-icon";
 import { ProjectIcon } from "@/components/project-icon";
 import {
   Command,
@@ -15,11 +17,13 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import { entryTypeMeta } from "@/lib/entry-catalog";
+import { searchEverything, type SearchResults } from "@/server/actions/search";
 import { ALL_NAV } from "./nav-config";
 import { useShell } from "./shell-provider";
 import { useSignOut } from "./user-menu";
 
-export type PaletteProject = { name: string; slug: string; icon: string; color: string };
+export type PaletteProject = { id: string; name: string; slug: string; icon: string; color: string };
 
 const stripAccents = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/g, "");
 
@@ -39,39 +43,151 @@ const KEYWORDS: Record<string, string[]> = {
   "/reglages": ["settings", "parametres", "securite", "passkey"],
 };
 
+const NO_RESULTS: SearchResults = { entries: [], tasks: [], contacts: [], projects: [] };
+
 export function CommandPalette({ projects }: { projects: PaletteProject[] }) {
   const router = useRouter();
-  const { paletteOpen, setPaletteOpen, capture } = useShell();
+  const { paletteOpen, setPaletteOpen, capture, openProjectDialog } = useShell();
   const { signOut } = useSignOut();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResults>(NO_RESULTS);
+  const [searching, startSearch] = useTransition();
+
+  useEffect(() => {
+    if (!paletteOpen) setQuery("");
+  }, [paletteOpen]);
+
+  // Debounced server search; static items keep filtering instantly client-side.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults(NO_RESULTS);
+      return;
+    }
+    const timer = setTimeout(() => {
+      startSearch(async () => {
+        try {
+          setResults(await searchEverything(q));
+        } catch {
+          setResults(NO_RESULTS);
+        }
+      });
+    }, 160);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const go = (href: string) => {
     setPaletteOpen(false);
     router.push(href);
   };
 
+  // Server matches are stemmed, so they may not contain the typed text: the
+  // query itself is passed as a keyword so cmdk never filters them out.
+  const matchAlways = [query];
+  const hasResults =
+    results.entries.length + results.tasks.length + results.contacts.length + results.projects.length > 0;
+
   return (
     <CommandDialog
       open={paletteOpen}
       onOpenChange={setPaletteOpen}
       title="Palette de commandes"
-      description="Aller à une page, un projet, ou lancer une action"
+      description="Rechercher dans Cockpit, aller à une page ou lancer une action"
       className="border border-border bg-popover shadow-[var(--shadow-pop)] sm:max-w-xl"
     >
       <Command filter={frenchFilter}>
-        <CommandInput placeholder="Aller à… ou lancer une action" />
-        <CommandList className="max-h-[min(420px,60vh)]">
+        <CommandInput placeholder="Rechercher partout, ou aller à…" value={query} onValueChange={setQuery} />
+        <CommandList className="max-h-[min(460px,62vh)]">
           <CommandEmpty>
-            Rien trouvé.
-            <span className="mt-1 block text-xs text-subtle">
-              La recherche dans tes notes, appels et messages arrive en phase 1.
-            </span>
+            {searching ? (
+              <span className="inline-flex items-center gap-2 text-subtle">
+                <Loader2Icon className="size-3.5 animate-spin" /> Recherche…
+              </span>
+            ) : (
+              "Aucun résultat."
+            )}
           </CommandEmpty>
 
+          {hasResults ? (
+            <>
+              {results.entries.length ? (
+                <CommandGroup heading="Entrées">
+                  {results.entries.map((item) => {
+                    const Icon = entryTypeIcon(item.type);
+                    return (
+                      <CommandItem
+                        key={item.id}
+                        value={`entree ${item.id} ${item.title ?? ""}`}
+                        keywords={matchAlways}
+                        onSelect={() => go(`/entrees/${item.id}`)}
+                        className="items-start"
+                      >
+                        <Icon className="mt-0.5" style={{ color: entryTypeMeta(item.type).color }} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{item.title || item.snippet || "Sans titre"}</span>
+                          {item.title && item.snippet ? (
+                            <span className="block truncate text-xs text-subtle">{item.snippet}</span>
+                          ) : null}
+                        </span>
+                        {item.projectName ? <span className="shrink-0 text-xs text-subtle">{item.projectName}</span> : null}
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              ) : null}
+              {results.tasks.length ? (
+                <CommandGroup heading="Tâches">
+                  {results.tasks.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`tache ${item.id} ${item.title}`}
+                      keywords={matchAlways}
+                      onSelect={() => go(`/taches?tache=${item.id}`)}
+                    >
+                      {item.status === "done" ? <CheckCircle2Icon className="text-success" /> : <CircleIcon />}
+                      <span className="truncate">{item.title}</span>
+                      {item.projectName ? <span className="ml-auto text-xs text-subtle">{item.projectName}</span> : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+              {results.contacts.length ? (
+                <CommandGroup heading="Contacts">
+                  {results.contacts.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`contact ${item.id} ${item.name}`}
+                      keywords={matchAlways}
+                      onSelect={() => go(`/contacts/${item.id}`)}
+                    >
+                      <UserIcon />
+                      <span className="truncate">{item.name}</span>
+                      {item.role ? <span className="ml-auto text-xs text-subtle">{item.role}</span> : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+              <CommandSeparator />
+            </>
+          ) : null}
+
           <CommandGroup heading="Actions">
-            <CommandItem value="capturer note rapide" onSelect={capture}>
+            <CommandItem value="capturer note rapide appel message" onSelect={() => capture()}>
               <ZapIcon className="text-primary" />
-              Capturer une note
+              Capturer
               <CommandShortcut>C</CommandShortcut>
+            </CommandItem>
+            <CommandItem value="nouvelle tache" onSelect={() => go("/taches?nouvelle=1")}>
+              <ListTodoIcon />
+              Nouvelle tâche
+            </CommandItem>
+            <CommandItem value="nouveau contact" onSelect={() => go("/contacts?nouveau=1")}>
+              <UserPlusIcon />
+              Nouveau contact
+            </CommandItem>
+            <CommandItem value="nouveau projet" onSelect={() => openProjectDialog()}>
+              <FolderPlusIcon />
+              Nouveau projet
             </CommandItem>
           </CommandGroup>
 
@@ -85,9 +201,7 @@ export function CommandPalette({ projects }: { projects: PaletteProject[] }) {
               >
                 <item.icon />
                 {item.label}
-                {item.shortcut ? (
-                  <CommandShortcut>G {item.shortcut.toUpperCase()}</CommandShortcut>
-                ) : null}
+                {item.shortcut ? <CommandShortcut>G {item.shortcut.toUpperCase()}</CommandShortcut> : null}
               </CommandItem>
             ))}
           </CommandGroup>

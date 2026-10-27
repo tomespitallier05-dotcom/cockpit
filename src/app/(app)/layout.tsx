@@ -1,8 +1,9 @@
 import { Suspense } from "react";
-import { CommandPalette } from "@/components/shell/command-palette";
-import { CommandPaletteLoader } from "@/components/shell/command-palette-loader";
+import { ProjectDialog } from "@/components/projects/project-dialog";
 import { Hotkeys } from "@/components/shell/hotkeys";
+import { InboxBadge } from "@/components/shell/inbox-badge";
 import { MobileNav, MobileTopBar } from "@/components/shell/mobile-nav";
+import { ShellDataFallback, ShellDataLoader } from "@/components/shell/shell-data-loader";
 import { ShellProvider } from "@/components/shell/shell-provider";
 import { Sidebar } from "@/components/shell/sidebar";
 import { SidebarProjects, SidebarProjectsSkeleton } from "@/components/shell/sidebar-projects";
@@ -17,6 +18,11 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         projects={
           <Suspense fallback={<SidebarProjectsSkeleton />}>
             <SidebarProjects />
+          </Suspense>
+        }
+        inboxBadge={
+          <Suspense fallback={null}>
+            <InboxBadge />
           </Suspense>
         }
         userMenu={
@@ -34,9 +40,10 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       />
       <main className="relative min-h-dvh md:pl-60">{children}</main>
       <MobileNav />
-      <Suspense fallback={<CommandPalette projects={[]} />}>
-        <CommandPaletteLoader />
+      <Suspense fallback={<ShellDataFallback />}>
+        <ShellDataLoader />
       </Suspense>
+      <ProjectDialog />
       <Hotkeys />
     </ShellProvider>
   );

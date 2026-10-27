@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  customType,
   date,
   index,
   integer,
@@ -28,6 +29,22 @@ import { user } from "./auth";
  */
 
 const id = () => uuid("id").primaryKey().defaultRandom();
+
+const tsvector = customType<{ data: string }>({
+  dataType: () => "tsvector",
+});
+
+/**
+ * Full-text search column kept in sync by Postgres. Weight A (title) ranks above
+ * B (body). cockpit_unaccent() comes from migration 0002.
+ */
+const searchVector = (titleColumn: string, bodyColumn: string) =>
+  tsvector("search").generatedAlwaysAs(
+    sql.raw(
+      `setweight(to_tsvector('french'::regconfig, public.cockpit_unaccent(coalesce("${titleColumn}", ''))), 'A') || ` +
+        `setweight(to_tsvector('french'::regconfig, public.cockpit_unaccent(coalesce("${bodyColumn}", ''))), 'B')`,
+    ),
+  );
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -178,10 +195,12 @@ export const entry = pgTable(
     pinned: boolean("pinned").notNull().default(false),
     /** Private entries are never sent to an AI provider. */
     isPrivate: boolean("is_private").notNull().default(false),
+    search: searchVector("title", "plain_text"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
+    index("entry_search_idx").using("gin", t.search),
     index("entry_workspace_occurred_idx").on(t.workspaceId, t.occurredAt.desc()),
     index("entry_project_occurred_idx").on(t.projectId, t.occurredAt.desc()),
     index("entry_inbox_idx")
@@ -322,10 +341,12 @@ export const task = pgTable(
     recurrence: text("recurrence"),
     position: integer("position").notNull().default(0),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    search: searchVector("title", "description"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
+    index("task_search_idx").using("gin", t.search),
     index("task_workspace_status_idx").on(t.workspaceId, t.status, t.dueAt),
     index("task_project_idx").on(t.projectId),
   ],

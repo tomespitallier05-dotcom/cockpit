@@ -1,23 +1,12 @@
 import "server-only";
 import { and, asc, count, desc, eq, inArray, isNull, ne } from "drizzle-orm";
-import { connection } from "next/server";
 import { db } from "./db";
 import { entry, insight, project, task, user, workspace } from "./db/schema";
-import { getCurrentUser } from "./session";
+import { requireUser } from "./dal";
 
 // Every exported query resolves the current user itself, so callers can never
 // read another workspace's data by passing an id.
 
-/**
- * The session may resolve during a prefetch, but the database reads that follow
- * must run at request time: Next can't see the embedded database as I/O, so
- * `connection()` says it explicitly. Phase 1 adds `use cache` + tags on top.
- */
-async function requireUser() {
-  const me = await getCurrentUser();
-  await connection();
-  return me;
-}
 
 export type ProjectSummary = Awaited<ReturnType<typeof listProjects>>[number];
 

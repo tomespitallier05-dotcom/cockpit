@@ -15,21 +15,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
+import { initials } from "@/lib/format";
 
 export type UserMenuUser = {
   name: string;
   email: string;
   image: string | null;
 };
-
-export function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
 
 export function UserAvatar({ user, className }: { user: UserMenuUser; className?: string }) {
   return (

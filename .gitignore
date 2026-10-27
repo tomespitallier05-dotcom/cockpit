@@ -45,3 +45,6 @@ next-env.d.ts
 
 # env files: .env.example is the documented template
 !.env.example
+
+# local file uploads (development storage)
+/.uploads

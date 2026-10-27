@@ -3,7 +3,6 @@
 import { PlusIcon, SearchIcon, ZapIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { toast } from "sonner";
 import { Logo } from "@/components/logo";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -11,8 +10,16 @@ import { NavLink } from "./nav-link";
 import { PRIMARY_NAV, PROJECTS_NAV, SETTINGS_NAV } from "./nav-config";
 import { useShell } from "./shell-provider";
 
-export function Sidebar({ projects, userMenu }: { projects: ReactNode; userMenu: ReactNode }) {
-  const { setPaletteOpen, capture } = useShell();
+export function Sidebar({
+  projects,
+  inboxBadge,
+  userMenu,
+}: {
+  projects: ReactNode;
+  inboxBadge: ReactNode;
+  userMenu: ReactNode;
+}) {
+  const { setPaletteOpen, capture, openProjectDialog } = useShell();
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-sidebar-border bg-sidebar md:flex">
@@ -37,7 +44,7 @@ export function Sidebar({ projects, userMenu }: { projects: ReactNode; userMenu:
         </button>
         <button
           type="button"
-          onClick={capture}
+          onClick={() => capture()}
           className="flex h-8 items-center gap-2 rounded-lg bg-primary/12 px-2.5 text-[13px] font-medium text-primary transition-colors hover:bg-primary/18"
         >
           <ZapIcon className="size-3.5" />
@@ -48,7 +55,12 @@ export function Sidebar({ projects, userMenu }: { projects: ReactNode; userMenu:
 
       <nav aria-label="Navigation principale" className="mt-4 flex flex-col gap-0.5 px-3">
         {PRIMARY_NAV.map((item) => (
-          <NavLink key={item.href} href={item.href} icon={<item.icon />}>
+          <NavLink
+            key={item.href}
+            href={item.href}
+            icon={<item.icon />}
+            trailing={item.href === "/inbox" ? inboxBadge : undefined}
+          >
             {item.label}
           </NavLink>
         ))}
@@ -67,17 +79,13 @@ export function Sidebar({ projects, userMenu }: { projects: ReactNode; userMenu:
               <button
                 type="button"
                 aria-label="Nouveau projet"
-                onClick={() =>
-                  toast("La création de projet arrive en phase 1", {
-                    description: "Nom, icône, couleur et template, en un instant.",
-                  })
-                }
+                onClick={() => openProjectDialog()}
                 className="flex size-5 items-center justify-center rounded-md text-subtle transition-colors hover:bg-white/5 hover:text-foreground"
               >
                 <PlusIcon className="size-3.5" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="right">Nouveau projet — phase 1</TooltipContent>
+            <TooltipContent side="right">Nouveau projet</TooltipContent>
           </Tooltip>
         </div>
         <div className="-mr-1 mt-0.5 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1">{projects}</div>

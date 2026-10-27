@@ -15,6 +15,20 @@
       "when": 1793135285716,
       "tag": "0001_enable_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793140125106,
+      "tag": "0002_search_unaccent",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793140153282,
+      "tag": "0003_search_columns",
+      "breakpoints": true
     }
   ]
 }
