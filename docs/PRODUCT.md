@@ -119,10 +119,15 @@ Bot Discord    ┘     4. Validation dans l'Inbox                     Analytics
 - **Accès** : `proxy.ts` redirige sans cookie ; la session est vérifiée au plus
   près des données. Compte propriétaire unique, verrouillé par `OWNER_EMAIL` en production.
 - **Base** : Postgres (Supabase en production, PGlite en local).
-- **À venir** : jobs Inngest ou Trigger.dev, Vercel AI SDK (Claude par défaut :
-  modèle léger pour le tri et l'extraction, modèle fort pour l'assistant, haut de
-  gamme pour les bilans longs), Deepgram ou AssemblyAI pour la transcription,
-  pgvector + recherche plein texte française pour la recherche hybride, Resend pour les emails.
+- **IA** (`src/server/ai/`) : Claude via le SDK Anthropic (`claude-opus-5-5` par défaut,
+  effort réglé par usage : bas pour l'extraction, moyen pour l'assistant, haut pour
+  les bilans longs ; repli serveur en cas de refus ; registre des coûts et plafond
+  mensuel). Embeddings (voyage-4-lite, 1024 dimensions, pgvector) et transcription
+  (ElevenLabs Scribe) via Vercel AI Gateway, authentifié par OIDC. `AI_MOCK=1` pour
+  tester sans fournisseur.
+- **Traitements** : `after()` après chaque capture, et une tâche quotidienne
+  (`/api/cron/daily`) pour le brief, les rappels, les bilans de début de période et
+  l'analyse progressive des entrées modifiées.
 
 ## Design system
 
@@ -138,13 +143,14 @@ projets et templates dans `src/lib/project-catalog.ts`.
 | Phase | Contenu | Statut |
 |---|---|---|
 | **0. Fondations** | Repo, auth (passkeys, 2FA, propriétaire unique), schéma complet, design system, sidebar + nav mobile + ⌘K + raccourcis, page Aujourd'hui, pages modules, manifeste PWA | ✅ Fait |
-| **1. Capturer et retrouver** | Création de projets, entrées (note, appel, message, lien, fichier) avec éditeur, Inbox et tri clavier, tâches, contacts, timeline, recherche plein texte, upload, PWA (share target, capture hors ligne) | À faire |
-| **2. Comprendre** | Transcription, extraction d'insights et de tâches, recherche sémantique, « Demander » avec sources, brief et debrief d'appel, import de captures d'écran, assistant | À faire |
-| **3. Piloter** | Objectifs + KPI + check-in, analytics, revue hebdo guidée, bilans automatiques, brief matinal, notifications, Inventaire, pipeline de contenu | À faire |
-| **4. Automatiser** | Google Calendar et Drive, bot Discord, email entrant, import WhatsApp, erreurs répétées et conseils non appliqués, bilans trimestriels et annuels, partage avec le mentor, export | À faire |
+| **1. Capturer et retrouver** | Création de projets, entrées (note, appel, message, lien, fichier) avec éditeur, Inbox et tri clavier, tâches, contacts, timeline, recherche plein texte, upload, PWA (share target ; capture hors ligne à venir) | ✅ Fait |
+| **2. Comprendre** | Transcription, extraction d'insights et de tâches, recherche sémantique, « Demander » avec sources, brief et debrief d'appel, import de captures d'écran, assistant | ✅ Fait |
+| **3. Piloter** | Objectifs + KPI + check-in, analytics, revue hebdo guidée, bilans automatiques, brief matinal, notifications, Inventaire, pipeline de contenu | ✅ Fait |
+| **4. Automatiser** | Google Calendar et Drive, bot Discord, email entrant, import WhatsApp, erreurs répétées et conseils non appliqués, bilans trimestriels et annuels, partage avec le mentor, export | ✅ Fait |
 
-Règle : une phase ne commence pas avant que la précédente ait servi au quotidien
-pendant 1 à 2 semaines.
+Règle d'origine : une phase ne commence pas avant que la précédente ait servi au
+quotidien pendant 1 à 2 semaines. Le 2026-10-28, à ta demande, les phases 2 à 4 ont
+été livrées d'un bloc : les ajustements se feront à l'usage.
 
 ## Journal des décisions
 
@@ -157,3 +163,13 @@ pendant 1 à 2 semaines.
   cache (`use cache` + tags prévus en phase 1).
 - **2026-10-27** — Interface en français, thème sombre uniquement pour l'instant
   (tokens prêts pour un thème clair).
+- **2026-10-28** — Claude via le SDK Anthropic ; embeddings et transcription via AI
+  Gateway (aucune clé à gérer sur Vercel). Opus 5.5 partout, l'effort fait le reste.
+- **2026-10-28** — Recherche hybride : plein texte français + pgvector, fusion par rang
+  réciproque. PGlite charge pgvector en local (`@electric-sql/pglite-pgvector`).
+- **2026-10-28** — Traitements de fond avec `after()` et un cron Vercel quotidien,
+  sans service de jobs externe ; chaque étape est idempotente.
+- **2026-10-28** — Google lié au compte (Agenda et Drive en lecture), jamais utilisé
+  pour se connecter ; jetons OAuth chiffrés en base.
+- **2026-10-28** — Bot Discord en interactions HTTP (pas de processus à héberger),
+  email entrant au format Postmark, partage avec le mentor par lien haché et révocable.

@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { aiStatus } from "@/server/ai/config";
 import { monthSpend } from "@/server/ai/usage";
 import { googleAccount, googleConfigured } from "@/server/google";
+import { requireUser } from "@/server/dal";
 import { getSecurityStatus } from "@/server/queries";
 import { getCurrentUser } from "@/server/session";
 import { CopyValue, DiscordButton, GoogleButtons } from "./integrations";
@@ -89,7 +90,7 @@ export default function SettingsPage() {
 }
 
 async function AiSettings() {
-  const me = await getCurrentUser();
+  const me = await requireUser();
   const status = aiStatus();
   const spend = await monthSpend(me.workspaceId);
   const share = Math.min(1, spend.usd / status.budgetUsd);
@@ -126,7 +127,7 @@ async function AiSettings() {
 }
 
 async function Integrations() {
-  const me = await getCurrentUser();
+  const me = await requireUser();
   const google = await googleAccount(me.id).catch(() => null);
   const base = process.env.BETTER_AUTH_URL ?? "";
   const discordReady = Boolean(process.env.DISCORD_PUBLIC_KEY && process.env.DISCORD_OWNER_ID);

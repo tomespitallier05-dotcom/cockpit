@@ -146,7 +146,8 @@ export async function listGoals(options: { projectId?: string; includeClosed?: b
         .filter((v) => v.metricId === g.metricId && v.date >= g.startsOn && v.date <= g.endsOn)
         .map((v) => ({ date: v.date, value: Number(v.value) }));
       currentValue = rollup(inPeriod, aggregation ?? "last");
-      const base = aggregation === "sum" ? 0 : (startValue ?? 0);
+      const before = values.filter((v) => v.metricId === g.metricId && v.date < g.startsOn).at(-1);
+      const base = aggregation === "sum" ? 0 : (startValue ?? (before ? Number(before.value) : 0));
       if (currentValue !== null && targetValue !== base) {
         progress = Math.max(0, Math.min(1, (currentValue - base) / (targetValue - base)));
       }

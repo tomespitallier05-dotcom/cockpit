@@ -60,6 +60,27 @@ relance `npm run dev`.
 Les passkeys sont liées au nom de domaine de `BETTER_AUTH_URL` : celles créées
 en local ne fonctionnent pas en production, et inversement.
 
+### Activer l'IA et les intégrations (phases 2 à 4)
+
+Toutes ces variables sont facultatives : chaque fonction reste désactivée, avec un
+message clair dans **Réglages**, tant que sa variable manque. Voir `.env.example`.
+
+| Fonction | Variables |
+|---|---|
+| Analyse, assistant, bilans, brief (Claude) | `ANTHROPIC_API_KEY` (option : `AI_MONTHLY_BUDGET_USD`) |
+| Transcription, recherche par le sens | rien sur Vercel (AI Gateway par OIDC) |
+| Notifications push | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` |
+| Tâche quotidienne protégée | `CRON_SECRET` |
+| Google Agenda et Drive | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| Bot Discord | `DISCORD_APPLICATION_ID`, `DISCORD_PUBLIC_KEY`, `DISCORD_BOT_TOKEN`, `DISCORD_OWNER_ID` |
+| Email entrant (Postmark) | `INBOUND_EMAIL_SECRET` |
+
+Sur Supabase, pgvector doit être activé dans le schéma `extensions` avant la
+migration `0004` : `create extension if not exists vector with schema extensions;`.
+
+Pour tester sans fournisseur : `npm run dev:test` lance l'app sur une base jetable
+avec `AI_MOCK=1` (réponses déterministes, aucun coût).
+
 ## Organisation du code
 
 ```

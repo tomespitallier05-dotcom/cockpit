@@ -49,7 +49,11 @@ export function InboxView({ items, projects, timeZone }: { items: InboxItem[]; p
   // "G then P" is the global shortcut to Projects: do not treat that P as "file".
   const lastKey = useRef<{ key: string; at: number }>({ key: "", at: 0 });
 
-  useEffect(() => rows.current[index]?.scrollIntoView({ block: "nearest" }), [index]);
+  // Braces matter: scrollIntoView returns a Promise in recent browsers, and an
+  // effect must return nothing or a cleanup function.
+  useEffect(() => {
+    rows.current[index]?.scrollIntoView({ block: "nearest" });
+  }, [index]);
 
   const removeLocally = (id: string) => setHidden((current) => new Set(current).add(id));
   const restoreLocally = (id: string) =>

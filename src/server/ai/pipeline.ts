@@ -229,9 +229,16 @@ export async function processEntry(workspaceId: string, entryId: string, options
 
     // 3. Indexing
     const heading = `${row.title || suggestion?.title || "Entrée"} — ${row.occurredAt.toISOString().slice(0, 10)}`;
-    await indexEntry(workspaceId, entryId, fullText, heading);
+    // Search indexing is a bonus: if the gateway is unavailable, the analysis still counts.
+    let indexError: string | undefined;
+    try {
+      await indexEntry(workspaceId, entryId, fullText, heading);
+    } catch (error) {
+      console.error("indexEntry", entryId, error);
+      indexError = "Indexation pour la recherche par le sens impossible pour l'instant.";
+    }
 
-    await setAiState(entryId, meta, { status: "done", processedAt: new Date().toISOString(), suggestion });
+    await setAiState(entryId, meta, { status: "done", processedAt: new Date().toISOString(), suggestion, error: indexError });
   } catch (error) {
     console.error("processEntry", entryId, error);
     await setAiState(entryId, meta, {

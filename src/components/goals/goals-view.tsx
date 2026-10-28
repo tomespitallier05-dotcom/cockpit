@@ -441,7 +441,11 @@ function GoalDialog({
         ...range,
         kind,
         metricId: kind === "metric" ? metricId : null,
-        startValue: kind === "metric" && chosen?.aggregation !== "sum" ? (chosen?.latest?.value ?? null) : null,
+        // The baseline is where the KPI stood when the period began, not today's value.
+        startValue:
+          kind === "metric" && chosen?.aggregation !== "sum"
+            ? (chosen?.series.filter((p) => p.date < range.startsOn).at(-1)?.value ?? null)
+            : null,
         targetValue: kind === "metric" && target ? Number(target.replace(",", ".")) : null,
         projectId: project ?? chosen?.projectId ?? null,
       });
