@@ -1,6 +1,6 @@
 "use client";
 
-import { upload } from "@vercel/blob/client";
+import { uploadPresigned } from "@vercel/blob/client";
 import { registerUpload } from "@/server/actions/files";
 
 /** Provided by the server: how this deployment stores files, and the caller's key prefix. */
@@ -38,7 +38,7 @@ export async function uploadFile(
     return body;
   }
 
-  const blob = await upload(`${config.prefix}${crypto.randomUUID()}-${safeName(file.name)}`, file, {
+  const blob = await uploadPresigned(`${config.prefix}${crypto.randomUUID()}-${safeName(file.name)}`, file, {
     access: "private",
     handleUploadUrl: "/api/fichiers/token",
     contentType: file.type || undefined,

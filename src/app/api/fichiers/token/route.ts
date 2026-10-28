@@ -1,26 +1,35 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { issueSignedToken } from "@vercel/blob";
+import { handleUploadPresigned, type HandleUploadPresignedBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/server/session";
 import { BLOB_MAX_BYTES, workspacePrefix } from "@/server/storage";
 
 /**
- * Issues a short-lived token so the browser can upload a private file straight
- * to Vercel Blob (no 4.5 MB function body limit). The token only allows writing
- * under the caller's workspace prefix. Recording the file is a separate,
- * authenticated Server Action (registerUpload), so no Blob callback is needed.
+ * Issues a presigned URL so the browser can upload one private file straight to
+ * Vercel Blob (no 4.5 MB function body limit). The signed token only allows a
+ * `put` of that exact pathname, under the caller's workspace prefix, for a few
+ * minutes. It works with the deployment's OIDC identity, so no long-lived Blob
+ * secret is stored. Recording the file is a separate, authenticated Server
+ * Action (registerUpload), so no upload-completed callback is needed.
  */
 export async function POST(request: Request) {
   const me = await getRequestUser(request);
   if (!me) return NextResponse.json({ error: "Non connecté." }, { status: 401 });
 
-  const body = (await request.json()) as HandleUploadBody;
+  const body = (await request.json()) as HandleUploadPresignedBody;
   try {
-    const result = await handleUpload({
+    const result = await handleUploadPresigned({
       request,
       body,
-      onBeforeGenerateToken: async (pathname) => {
+      getSignedToken: async (pathname) => {
         if (!pathname.startsWith(workspacePrefix(me.workspaceId))) throw new Error("Chemin refusé.");
-        return { maximumSizeInBytes: BLOB_MAX_BYTES, addRandomSuffix: false, allowOverwrite: false };
+        const token = await issueSignedToken({
+          pathname,
+          operations: ["put"],
+          maximumSizeInBytes: BLOB_MAX_BYTES,
+          validUntil: Date.now() + 10 * 60 * 1000,
+        });
+        return { token, urlOptions: { maximumSizeInBytes: BLOB_MAX_BYTES, allowOverwrite: false } };
       },
     });
     return NextResponse.json(result);

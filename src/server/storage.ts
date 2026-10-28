@@ -14,8 +14,12 @@ import { del, get, head } from "@vercel/blob";
  */
 export type UploadMode = "blob" | "local";
 
+/**
+ * Blob credentials come either from a read-write token or, for stores connected
+ * through the Vercel dashboard, from the deployment's OIDC identity plus BLOB_STORE_ID.
+ */
 export function uploadMode(): UploadMode {
-  return process.env.BLOB_READ_WRITE_TOKEN ? "blob" : "local";
+  return process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID ? "blob" : "local";
 }
 
 /** Server-side upload ceiling (local mode). Blob uploads go straight from the browser. */
