@@ -7,6 +7,7 @@ import { CAPTURE_TYPES, MESSAGE_CHANNELS, textToDoc, type MessageChannel } from 
 import { assertOwnContacts, assertOwnProject, fail, ok, type ActionResult } from "../dal";
 import { db } from "../db";
 import { entry, entryContact } from "../db/schema";
+import { scheduleProcessing } from "../ai/pipeline";
 import { getActionUser } from "../session";
 
 const entryId = z.uuid();
@@ -52,10 +53,11 @@ export async function createEntry(input: z.input<typeof createInput>): Promise<A
         content: data.body ? textToDoc(data.body) : null,
         plainText: data.body,
         occurredAt: data.occurredAt ?? new Date(),
-        meta: data.meta,
+        meta: { ...data.meta, ai: { status: "pending" } },
         inboxStatus: projectId ? "processed" : "inbox",
       })
       .returning({ id: entry.id });
+    if (data.body.trim().length >= 20) scheduleProcessing(me.workspaceId, created.id);
     refresh();
     return ok({ id: created.id });
   } catch (error) {
@@ -82,10 +84,24 @@ export async function updateEntry(id: string, input: z.input<typeof updateInput>
     const me = await getActionUser();
     const data = updateInput.parse(input);
     const projectId = data.projectId === undefined ? undefined : await assertOwnProject(me, data.projectId);
+    const [current] = await db
+      .select({ meta: entry.meta, plainText: entry.plainText })
+      .from(entry)
+      .where(and(eq(entry.id, entryId.parse(id)), eq(entry.workspaceId, me.workspaceId), isNull(entry.deletedAt)));
+    if (!current) throw new Error("Entrée introuvable.");
+    // Editor fields merge into meta; pipeline state (ai, calendar ids…) is kept, and
+    // a text change marks the last analysis as stale.
+    let meta: Record<string, unknown> | undefined = data.meta ? { ...current.meta, ...data.meta } : undefined;
+    if (data.plainText !== undefined && data.plainText !== current.plainText) {
+      const base = meta ?? { ...current.meta };
+      const ai = (base.ai as Record<string, unknown> | undefined) ?? { status: "pending" };
+      meta = { ...base, ai: { ...ai, stale: true } };
+    }
     await db
       .update(entry)
       .set({
         ...data,
+        meta,
         title: data.title === undefined ? undefined : data.title || null,
         projectId,
       })

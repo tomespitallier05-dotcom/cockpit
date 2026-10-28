@@ -16,6 +16,7 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  vector,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 
@@ -170,6 +171,8 @@ export const ENTRY_SOURCES = [
   "upload",
   "meet",
   "import",
+  "calendar",
+  "drive",
 ] as const;
 
 export const entry = pgTable(
@@ -298,6 +301,8 @@ export const insight = pgTable(
       .default("proposed"),
     appliedAt: timestamp("applied_at", { withTimezone: true }),
     confidence: real("confidence"),
+    /** Proposed task details for "action" insights. */
+    meta: jsonb("meta").$type<{ dueDate?: string | null; priority?: string }>().notNull().default({}),
     ...timestamps,
   },
   (t) => [
@@ -560,7 +565,7 @@ export const aiUsage = pgTable(
     id: id(),
     workspaceId: workspaceRef(),
     feature: text("feature", {
-      enum: ["triage", "extract", "assistant", "review", "transcribe", "embed"],
+      enum: ["triage", "extract", "assistant", "review", "transcribe", "embed", "vision", "brief"],
     }).notNull(),
     provider: text("provider").notNull(),
     model: text("model").notNull(),
@@ -571,4 +576,136 @@ export const aiUsage = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("ai_usage_workspace_month_idx").on(t.workspaceId, t.createdAt)],
+);
+
+// ---------------------------------------------------------------------------
+// Semantic search: one row per chunk, decoupled from the model that made it
+// ---------------------------------------------------------------------------
+
+/** Dimensions of the stored vectors (voyage-4-lite at its default size). */
+export const EMBEDDING_DIMENSIONS = 1024;
+
+export const embedding = pgTable(
+  "embedding",
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    sourceType: text("source_type", { enum: ["entry", "insight"] }).notNull(),
+    sourceId: uuid("source_id").notNull(),
+    /** The entry to open for this chunk (the insight's source entry for insights). */
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => entry.id, { onDelete: "cascade" }),
+    chunkIndex: integer("chunk_index").notNull().default(0),
+    content: text("content").notNull(),
+    model: text("model").notNull(),
+    vector: vector("vector", { dimensions: EMBEDDING_DIMENSIONS }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("embedding_source_chunk_idx").on(t.sourceType, t.sourceId, t.chunkIndex),
+    index("embedding_workspace_idx").on(t.workspaceId),
+    index("embedding_vector_idx").using("hnsw", t.vector.op("vector_cosine_ops")),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Content module: ideas → published posts, with the numbers that followed
+// ---------------------------------------------------------------------------
+
+export const CONTENT_STAGES = ["idea", "script", "shoot", "edit", "scheduled", "published"] as const;
+
+export const contentItem = pgTable(
+  "content_item",
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    format: text("format", { enum: ["reel", "carousel", "story", "post", "video", "other"] })
+      .notNull()
+      .default("reel"),
+    stage: text("stage", { enum: CONTENT_STAGES }).notNull().default("idea"),
+    hook: text("hook"),
+    notes: text("notes"),
+    scheduledOn: date("scheduled_on", { mode: "string" }),
+    publishedOn: date("published_on", { mode: "string" }),
+    url: text("url"),
+    /** Numbers measured after publication. */
+    stats: jsonb("stats")
+      .$type<{ views?: number; likes?: number; comments?: number; saves?: number; shares?: number; followers?: number }>()
+      .notNull()
+      .default({}),
+    position: integer("position").notNull().default(0),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("content_project_stage_idx").on(t.projectId, t.stage)],
+);
+
+// ---------------------------------------------------------------------------
+// Morning brief, notifications, web push
+// ---------------------------------------------------------------------------
+
+export const dailyBrief = pgTable(
+  "daily_brief",
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    date: date("date", { mode: "string" }).notNull(),
+    /** Structured brief: focus, priorities, calls, advice to apply… */
+    content: jsonb("content").$type<Record<string, unknown>>().notNull(),
+    summary: text("summary"),
+    generatedBy: text("generated_by", { enum: ["rules", "ai"] }).notNull().default("rules"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("daily_brief_workspace_date_idx").on(t.workspaceId, t.date)],
+);
+
+export const notification = pgTable(
+  "notification",
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    kind: text("kind", { enum: ["brief", "reminder", "review", "insight", "system"] }).notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    href: text("href"),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("notification_workspace_created_idx").on(t.workspaceId, t.createdAt.desc())],
+);
+
+export const pushSubscription = pgTable("push_subscription", {
+  id: id(),
+  workspaceId: workspaceRef(),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// Read-only links shared with the mentor (only the token's hash is stored)
+// ---------------------------------------------------------------------------
+
+export const shareLink = pgTable(
+  "share_link",
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    tokenHash: text("token_hash").notNull().unique(),
+    kind: text("kind", { enum: ["review", "project"] }).notNull(),
+    targetId: uuid("target_id").notNull(),
+    label: text("label"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    lastViewedAt: timestamp("last_viewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("share_link_target_idx").on(t.workspaceId, t.kind, t.targetId)],
 );

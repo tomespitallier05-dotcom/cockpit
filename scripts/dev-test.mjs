@@ -11,5 +11,5 @@ function run(command, args) {
   });
 }
 
-await run("npx", ["drizzle-kit", "migrate"]);
+await run("node", ["scripts/migrate.mjs"]);
 await run("npx", ["next", "dev"]);

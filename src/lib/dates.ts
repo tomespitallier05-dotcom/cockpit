@@ -92,3 +92,9 @@ export function endOfDayIn(timeZone: string, now = new Date()) {
   const naive = new Date(`${dayKey(now, timeZone)}T23:59:59.999Z`);
   return new Date(naive.getTime() - timeZoneOffsetMs(naive, timeZone));
 }
+
+/** The instant a wall-clock date and time ("2024-03-12", "14:23") happened in a timezone. */
+export function zonedInstant(date: string, time: string, timeZone: string) {
+  const naive = new Date(`${date}T${time.length === 5 ? `${time}:00` : time}Z`);
+  return new Date(naive.getTime() - timeZoneOffsetMs(naive, timeZone));
+}

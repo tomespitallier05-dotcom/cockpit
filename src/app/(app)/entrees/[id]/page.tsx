@@ -8,6 +8,7 @@ import { getEntryDetail } from "@/server/data/entries";
 import { listProjects } from "@/server/queries";
 import { uploadConfigFor } from "@/server/upload-config";
 import { EntryEditor } from "./entry-editor";
+import { EntryIntelligence } from "./entry-intelligence";
 
 export const metadata: Metadata = { title: "Entrée" };
 
@@ -60,7 +61,11 @@ async function EntryLoader({ params }: { params: PageProps<"/entrees/[id]">["par
       contacts={contacts}
       uploadConfig={uploadConfigFor(me)}
       backHref={backHref}
-    />
+    >
+      <Suspense fallback={<Skeleton className="mt-8 h-40 w-full rounded-2xl" />}>
+        <EntryIntelligence entry={entry} />
+      </Suspense>
+    </EntryEditor>
   );
 }
 

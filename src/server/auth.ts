@@ -1,7 +1,7 @@
 import "server-only";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { authBaseURL, authPlugins } from "./auth-plugins";
 import { db } from "./db";
@@ -22,6 +22,29 @@ export const auth = betterAuth({
     cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
   rateLimit: { enabled: true },
+  // Google is linked to the owner's account for Calendar and Drive, never used to sign in.
+  socialProviders: process.env.GOOGLE_CLIENT_ID
+    ? {
+        google: {
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+          accessType: "offline",
+          prompt: "select_account consent",
+          disableSignUp: true,
+        },
+      }
+    : undefined,
+  account: {
+    encryptOAuthTokens: true,
+    accountLinking: { enabled: true, trustedProviders: ["google"], allowDifferentEmails: true },
+  },
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path === "/sign-in/social") {
+        throw new APIError("FORBIDDEN", { message: "Connecte-toi avec ton mot de passe ou ta passkey." });
+      }
+    }),
+  },
   databaseHooks: {
     user: {
       create: {

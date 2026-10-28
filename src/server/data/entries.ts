@@ -19,6 +19,7 @@ const entryListColumns = {
   projectSlug: project.slug,
   projectColor: project.color,
   projectIcon: project.icon,
+  meta: entry.meta,
 };
 
 export type EntryListItem = Awaited<ReturnType<typeof listEntries>>[number];

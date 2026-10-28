@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { CheckIcon, FolderInputIcon, InboxIcon, PartyPopperIcon, Trash2Icon, ZapIcon } from "lucide-react";
+import { CheckIcon, FolderInputIcon, InboxIcon, Loader2Icon, PartyPopperIcon, SparklesIcon, Trash2Icon, ZapIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -21,6 +21,10 @@ export type InboxItem = {
   title: string | null;
   plainText: string;
   occurredAt: Date;
+  /** The AI's filing suggestion, accepted with S. */
+  suggestedProjectId?: string | null;
+  summary?: string | null;
+  analyzing?: boolean;
 };
 
 function isTyping(target: EventTarget | null) {
@@ -29,7 +33,7 @@ function isTyping(target: EventTarget | null) {
 
 /**
  * Keyboard-first triage. J/K move, Enter opens, E files without a project,
- * P files into a project, Backspace deletes (undoable).
+ * P files into a project, S accepts the AI's suggested project, Backspace deletes (undoable).
  */
 export function InboxView({ items, projects, timeZone }: { items: InboxItem[]; projects: ProjectOption[]; timeZone: string }) {
   const router = useRouter();
@@ -112,6 +116,12 @@ export function InboxView({ items, projects, timeZone }: { items: InboxItem[]; p
             file(current, null);
           }
           break;
+        case "s":
+          if (current?.suggestedProjectId) {
+            event.preventDefault();
+            file(current, current.suggestedProjectId);
+          }
+          break;
         case "p":
           if (current) {
             event.preventDefault();
@@ -155,6 +165,7 @@ export function InboxView({ items, projects, timeZone }: { items: InboxItem[]; p
         <span className="flex items-center gap-1.5"><Kbd>J</Kbd><Kbd>K</Kbd> naviguer</span>
         <span className="flex items-center gap-1.5"><Kbd>↵</Kbd> ouvrir</span>
         <span className="flex items-center gap-1.5"><Kbd>P</Kbd> ranger dans un projet</span>
+        <span className="flex items-center gap-1.5"><Kbd>S</Kbd> accepter la suggestion</span>
         <span className="flex items-center gap-1.5"><Kbd>E</Kbd> classer sans projet</span>
         <span className="flex items-center gap-1.5"><Kbd>⌫</Kbd> supprimer</span>
       </div>
@@ -186,9 +197,24 @@ export function InboxView({ items, projects, timeZone }: { items: InboxItem[]; p
                     <span className="block truncate text-[13.5px] font-medium text-foreground">{entryHeadline(item)}</span>
                     <span className="block truncate text-[12px] text-subtle">
                       {dayLabel(item.occurredAt, timeZone)} · {timeLabel(item.occurredAt, timeZone)}
+                      {item.summary ? ` · ${item.summary}` : ""}
                     </span>
                   </span>
                 </button>
+                {item.analyzing ? (
+                  <Loader2Icon className="size-3.5 shrink-0 animate-spin text-subtle" aria-label="Analyse en cours" />
+                ) : null}
+                {item.suggestedProjectId ? (
+                  <button
+                    type="button"
+                    onClick={() => file(item, item.suggestedProjectId)}
+                    className="hidden shrink-0 items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[11.5px] text-primary transition-colors hover:bg-primary/20 sm:flex"
+                    title="Accepter la suggestion (S)"
+                  >
+                    <SparklesIcon className="size-3" aria-hidden />
+                    {projects.find((p) => p.id === item.suggestedProjectId)?.name ?? "Projet suggéré"}
+                  </button>
+                ) : null}
                 <div className={cn("flex shrink-0 items-center gap-1", !selected && "md:opacity-0 md:group-hover:opacity-100")}>
                   <ProjectPicker
                     projects={projects}

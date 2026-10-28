@@ -1,9 +1,13 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
+import { scheduleProcessing } from "./ai/pipeline";
 import { db } from "./db";
 import { attachment, entry } from "./db/schema";
 import type { CurrentUser } from "./session";
 import { kindFor } from "./storage";
+
+/** Kinds the pipeline turns into text (transcript, OCR, PDF text). */
+const PROCESSED_KINDS = new Set(["image", "pdf", "audio", "video", "document"]);
 
 /**
  * Records a stored file. Without an entry, the file becomes its own "file" entry
@@ -29,6 +33,7 @@ export async function recordAttachment(
     targetEntryId = created.id;
   }
 
+  const kind = kindFor(file.mimeType, file.fileName);
   const [row] = await db
     .insert(attachment)
     .values({
@@ -38,10 +43,12 @@ export async function recordAttachment(
       fileName: file.fileName.slice(0, 255),
       mimeType: file.mimeType || "application/octet-stream",
       sizeBytes: file.sizeBytes,
-      kind: kindFor(file.mimeType, file.fileName),
-      processingStatus: "done",
+      kind,
+      processingStatus: PROCESSED_KINDS.has(kind) ? "pending" : "done",
     })
     .returning({ id: attachment.id });
+
+  if (PROCESSED_KINDS.has(kind)) scheduleProcessing(me.workspaceId, targetEntryId);
 
   return { attachmentId: row.id, entryId: targetEntryId };
 }

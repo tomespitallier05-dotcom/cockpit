@@ -4,7 +4,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { del, get, head } from "@vercel/blob";
+import { del, get, head, put } from "@vercel/blob";
 
 /**
  * Private file storage. Production uses Vercel Blob with `access: "private"`:
@@ -52,6 +52,15 @@ export async function writeLocalFile(key: string, data: Uint8Array) {
   const target = localPath(key);
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, data);
+}
+
+/** Server-side write (imports from Drive, email attachments, share target). */
+export async function storeFile(key: string, data: Uint8Array, mimeType: string) {
+  if (uploadMode() === "blob") {
+    await put(key, Buffer.from(data), { access: "private", contentType: mimeType || "application/octet-stream", addRandomSuffix: false });
+    return;
+  }
+  await writeLocalFile(key, data);
 }
 
 export async function readStoredFile(key: string): Promise<{ body: ReadableStream; size?: number } | null> {

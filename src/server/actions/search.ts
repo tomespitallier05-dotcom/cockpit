@@ -1,12 +1,22 @@
 "use server";
 
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { semanticSearch, type SemanticHit } from "../ai/semantic";
 import { db } from "../db";
 import { contact, entry, project, task } from "../db/schema";
 import { getActionUser } from "../session";
 
 export type SearchResults = {
-  entries: { id: string; type: string; title: string | null; snippet: string; projectName: string | null; occurredAt: Date }[];
+  entries: {
+    id: string;
+    type: string;
+    title: string | null;
+    snippet: string;
+    projectName: string | null;
+    occurredAt: Date;
+    /** Found by meaning rather than by its words. */
+    semantic?: boolean;
+  }[];
   tasks: { id: string; title: string; status: string; projectName: string | null }[];
   contacts: { id: string; name: string; role: string | null }[];
   projects: { id: string; name: string; slug: string; icon: string; color: string }[];
@@ -49,7 +59,7 @@ export async function searchEverything(query: string): Promise<SearchResults> {
     sql`ts_rank(${column}, to_tsquery('french', ${tsQuery}))`;
   const like = `%${terms.join(" ")}%`;
 
-  const [entries, tasks, contacts, projects] = await Promise.all([
+  const [entries, tasks, contacts, projects, semantic] = await Promise.all([
     db
       .select({
         id: entry.id,
@@ -93,12 +103,53 @@ export async function searchEverything(query: string): Promise<SearchResults> {
         ),
       )
       .limit(5),
+    normalized.trim().length >= 4
+      ? semanticSearch(me.workspaceId, query, 6).catch((error) => {
+          console.error("semanticSearch", error);
+          return [] as SemanticHit[];
+        })
+      : Promise.resolve([] as SemanticHit[]),
   ]);
 
   return {
-    entries: entries.map(({ plainText, ...rest }) => ({ ...rest, snippet: snippet(plainText, terms) })),
+    entries: await mergeHybrid(
+      me.workspaceId,
+      entries.map(({ plainText, ...rest }) => ({ ...rest, snippet: snippet(plainText, terms) })),
+      semantic,
+    ),
     tasks,
     contacts,
     projects,
   };
+}
+
+type EntryResult = SearchResults["entries"][number];
+
+/**
+ * Reciprocal rank fusion of the keyword and meaning rankings: an entry found by
+ * both rises to the top, and one found only by meaning still shows up.
+ */
+async function mergeHybrid(workspaceId: string, keyword: EntryResult[], semantic: SemanticHit[]) {
+  if (semantic.length === 0) return keyword;
+  const scores = new Map<string, number>();
+  keyword.forEach((item, rank) => scores.set(item.id, (scores.get(item.id) ?? 0) + 1 / (60 + rank)));
+  semantic.forEach((hit, rank) => scores.set(hit.entryId, (scores.get(hit.entryId) ?? 0) + 1 / (60 + rank)));
+
+  const known = new Map(keyword.map((item) => [item.id, item]));
+  const missing = semantic.filter((hit) => !known.has(hit.entryId)).map((hit) => hit.entryId);
+  if (missing.length) {
+    const rows = await db
+      .select({ id: entry.id, type: entry.type, title: entry.title, projectName: project.name, occurredAt: entry.occurredAt })
+      .from(entry)
+      .leftJoin(project, eq(entry.projectId, project.id))
+      .where(and(eq(entry.workspaceId, workspaceId), isNull(entry.deletedAt), inArray(entry.id, missing)));
+    for (const row of rows) {
+      const hit = semantic.find((item) => item.entryId === row.id)!;
+      const body = hit.content.split("\n").slice(1).join(" ").replace(/\s+/g, " ").trim();
+      known.set(row.id, { ...row, snippet: body.length > 140 ? `${body.slice(0, 140)}…` : body, semantic: true });
+    }
+  }
+  return [...known.values()]
+    .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0))
+    .slice(0, 8);
 }

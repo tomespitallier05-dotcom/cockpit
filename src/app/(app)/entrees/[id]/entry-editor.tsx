@@ -67,12 +67,15 @@ export function EntryEditor({
   contacts,
   uploadConfig,
   backHref,
+  children,
 }: {
   entry: EditableEntry;
   projects: ProjectOption[];
   contacts: ContactOption[];
   uploadConfig: UploadConfig;
   backHref: string;
+  /** Server-rendered sections shown under the attachments (analysis, insights). */
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const [type, setType] = useState<CaptureType>((entry.type as CaptureType) ?? "note");
@@ -366,6 +369,7 @@ export function EntryEditor({
       <div className="mt-10">
         <AttachmentsPanel entryId={entry.id} files={entry.files} uploadConfig={uploadConfig} />
       </div>
+      {children}
     </div>
   );
 }

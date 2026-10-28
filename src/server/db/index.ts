@@ -1,5 +1,6 @@
 import "server-only";
 import { PGlite } from "@electric-sql/pglite";
+import { vector } from "@electric-sql/pglite-pgvector";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { drizzle as drizzlePostgres, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -23,7 +24,7 @@ function createDatabase(): Database {
   if (process.env.NODE_ENV === "production") {
     throw new Error("DATABASE_URL est obligatoire en production.");
   }
-  const client = new PGlite(process.env.PGLITE_DIR ?? ".pglite");
+  const client = new PGlite(process.env.PGLITE_DIR ?? ".pglite", { extensions: { vector } });
   return drizzlePglite(client, { schema }) as unknown as Database;
 }
 
