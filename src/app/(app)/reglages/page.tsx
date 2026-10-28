@@ -1,14 +1,31 @@
-import { BellIcon, BotIcon, DatabaseIcon, Settings2Icon } from "lucide-react";
+import {
+  AudioLinesIcon,
+  BellIcon,
+  BotIcon,
+  CalendarIcon,
+  DatabaseIcon,
+  DownloadIcon,
+  MailIcon,
+  MessageSquareIcon,
+  Settings2Icon,
+  Share2Icon,
+} from "lucide-react";
+import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { PageContainer, PageHeader, PageIcon } from "@/components/page-header";
-import { PhaseBadge } from "@/components/phase-badge";
+import { ProgressMeter } from "@/components/charts";
+import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/reveal";
 import { UserAvatar } from "@/components/shell/user-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { aiStatus } from "@/server/ai/config";
+import { monthSpend } from "@/server/ai/usage";
+import { googleAccount, googleConfigured } from "@/server/google";
 import { getSecurityStatus } from "@/server/queries";
 import { getCurrentUser } from "@/server/session";
+import { CopyValue, DiscordButton, GoogleButtons } from "./integrations";
 import { SecuritySettings } from "./security-settings";
 
 export const metadata: Metadata = { title: "Réglages" };
@@ -16,7 +33,7 @@ export const metadata: Metadata = { title: "Réglages" };
 export default function SettingsPage() {
   return (
     <PageContainer className="max-w-3xl">
-      <PageHeader title="Réglages" description="Ton compte, ta sécurité et tes données." icon={<PageIcon icon={Settings2Icon} />} />
+      <PageHeader title="Réglages" description="Ton compte, ta sécurité, l'IA, les intégrations et tes données." icon={<PageIcon icon={Settings2Icon} />} />
 
       <Section title="Profil" index={1}>
         <Suspense fallback={<Skeleton className="h-[72px] w-full rounded-2xl" />}>
@@ -30,20 +47,167 @@ export default function SettingsPage() {
         </Suspense>
       </Section>
 
-      <Section title="À venir" index={3}>
+      <Section id="ia" title="Intelligence artificielle" index={3}>
+        <Suspense fallback={<Skeleton className="h-28 w-full rounded-2xl" />}>
+          <AiSettings />
+        </Suspense>
+      </Section>
+
+      <Section id="integrations" title="Intégrations" index={4}>
+        <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+          <Integrations />
+        </Suspense>
+      </Section>
+
+      <Section id="donnees" title="Notifications et données" index={5}>
         <div className="surface divide-y divide-border">
-          <Upcoming icon={<BotIcon />} title="Intelligence artificielle" phase={2}>
-            Fournisseur et modèles (Claude par défaut), plafond de dépense mensuel, contexte personnel.
-          </Upcoming>
-          <Upcoming icon={<BellIcon />} title="Notifications" phase={3}>
-            Brief du matin, revue hebdomadaire et rappels d&apos;échéances, sans surcharge.
-          </Upcoming>
-          <Upcoming icon={<DatabaseIcon />} title="Données et export" phase={4}>
-            Export complet en Markdown et JSON, sauvegardes quotidiennes.
-          </Upcoming>
+          <Row icon={<BellIcon />} title="Notifications" status={null}>
+            Brief du matin, rappels et bilans prêts.{" "}
+            <Link href="/notifications" className="text-foreground underline-offset-4 hover:underline">
+              Gérer les notifications
+            </Link>
+          </Row>
+          <Row icon={<DatabaseIcon />} title="Export complet" status={null}>
+            Toutes tes données, à tout moment : JSON pour les machines, Markdown pour toi.
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <a href="/api/export?format=json">
+                  <DownloadIcon /> JSON
+                </a>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <a href="/api/export?format=markdown">
+                  <DownloadIcon /> Markdown (zip)
+                </a>
+              </Button>
+            </div>
+          </Row>
         </div>
       </Section>
     </PageContainer>
+  );
+}
+
+async function AiSettings() {
+  const me = await getCurrentUser();
+  const status = aiStatus();
+  const spend = await monthSpend(me.workspaceId);
+  const share = Math.min(1, spend.usd / status.budgetUsd);
+  return (
+    <div className="surface divide-y divide-border">
+      <Row
+        icon={<BotIcon />}
+        title="Claude"
+        status={status.mock ? "Simulé" : status.claude ? "Actif" : "À configurer"}
+        ok={status.claude}
+      >
+        {status.claude
+          ? `Modèle ${status.model}, avec repli automatique si une demande est refusée. Analyse des entrées, assistant, bilans, brief.`
+          : "Ajoute ANTHROPIC_API_KEY dans les variables Vercel (Production et Preview) pour activer l'analyse, l'assistant et les bilans."}
+        <div className="mt-3">
+          <div className="flex justify-between text-[12px] text-subtle">
+            <span>Dépense du mois</span>
+            <span className="tabular-nums">
+              {spend.usd.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} $ / {status.budgetUsd} $ · {spend.calls} appel{spend.calls > 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="mt-1.5">
+            <ProgressMeter value={share} label="Budget IA du mois" />
+          </div>
+        </div>
+      </Row>
+      <Row icon={<AudioLinesIcon />} title="Transcription et recherche par le sens" status={status.gateway ? "Actif" : "À configurer"} ok={status.gateway}>
+        {status.gateway
+          ? "Via Vercel AI Gateway : transcription des appels et notes vocales, vecteurs pour la recherche sémantique."
+          : "Actif automatiquement sur Vercel (AI Gateway). En local : AI_GATEWAY_API_KEY, ou AI_MOCK=1 pour tester."}
+      </Row>
+    </div>
+  );
+}
+
+async function Integrations() {
+  const me = await getCurrentUser();
+  const google = await googleAccount(me.id).catch(() => null);
+  const base = process.env.BETTER_AUTH_URL ?? "";
+  const discordReady = Boolean(process.env.DISCORD_PUBLIC_KEY && process.env.DISCORD_OWNER_ID);
+  const discordCommands = Boolean(process.env.DISCORD_APPLICATION_ID && process.env.DISCORD_BOT_TOKEN);
+  const emailReady = Boolean(process.env.INBOUND_EMAIL_SECRET);
+  return (
+    <div className="surface divide-y divide-border">
+      <Row
+        icon={<CalendarIcon />}
+        title="Google Agenda et Drive"
+        status={!googleConfigured() ? "À configurer" : google ? "Connecté" : "Non connecté"}
+        ok={Boolean(google)}
+        action={<GoogleButtons configured={googleConfigured()} linked={Boolean(google)} />}
+      >
+        {!googleConfigured()
+          ? "Crée un client OAuth Google (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET) avec l'URL de redirection ci-dessous."
+          : google
+            ? `Agenda ${google.calendar ? "✓" : "✗"} · Drive ${google.drive ? "✓" : "✗"}. Les appels à venir apparaissent sur Aujourd'hui ; l'Inbox importe depuis Drive.`
+            : "Lecture seule : tes appels à venir et l'import des enregistrements Meet depuis Drive. Google ne sert jamais à se connecter."}
+        {!googleConfigured() ? <CopyValue value={`${base}/api/auth/callback/google`} label="l'URL de redirection" /> : null}
+      </Row>
+      <Row
+        icon={<MessageSquareIcon />}
+        title="Bot Discord"
+        status={discordReady ? "Actif" : "À configurer"}
+        ok={discordReady}
+        action={<DiscordButton configured={discordCommands} />}
+      >
+        {discordReady
+          ? "/save pour une note, et clic droit sur un message → Applications → « Enregistrer dans Cockpit », même en message privé."
+          : "Crée une application Discord, colle cette URL comme « Interactions Endpoint URL », puis ajoute DISCORD_PUBLIC_KEY, DISCORD_APPLICATION_ID, DISCORD_BOT_TOKEN et DISCORD_OWNER_ID (ton identifiant)."}
+        <CopyValue value={`${base}/api/discord/interactions`} label="l'URL des interactions" />
+      </Row>
+      <Row icon={<MailIcon />} title="Email entrant" status={emailReady ? "Actif" : "À configurer"} ok={emailReady}>
+        {emailReady
+          ? "Transfère n'importe quel email à ton adresse de réception : il arrive dans l'Inbox, pièces jointes comprises."
+          : "Avec Postmark (réception d'emails) : définis INBOUND_EMAIL_SECRET, puis colle cette URL de webhook en remplaçant SECRET par sa valeur."}
+        <CopyValue value={`${base}/api/inbound/email?token=SECRET`} label="l'URL du webhook" />
+      </Row>
+      <Row icon={<Share2Icon />} title="Partage depuis le téléphone" status="Actif" ok>
+        Sur Android : installe Cockpit (menu → Installer l&apos;application), puis Partager → Cockpit depuis n&apos;importe quelle app.
+        Sur iPhone : un Raccourci « Obtenir le contenu de l&apos;URL » en POST vers l&apos;adresse ci-dessous, avec les champs text et url.
+        <CopyValue value={`${base}/partager`} label="l'adresse de partage" />
+      </Row>
+    </div>
+  );
+}
+
+function Row({
+  icon,
+  title,
+  status,
+  ok,
+  action,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  status: string | null;
+  ok?: boolean;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3 p-5">
+      <span className="mt-0.5 text-subtle [&_svg]:size-4">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-2 text-[13.5px] font-medium text-foreground">
+            {title}
+            {status ? (
+              <span className={ok ? "rounded-md bg-success/12 px-1.5 py-0.5 text-[11px] font-normal text-success" : "rounded-md bg-white/[0.05] px-1.5 py-0.5 text-[11px] font-normal text-subtle"}>
+                {status}
+              </span>
+            ) : null}
+          </p>
+          {action}
+        </div>
+        <div className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{children}</div>
+      </div>
+    </div>
   );
 }
 
@@ -74,18 +238,4 @@ async function Profile() {
 async function Security() {
   const status = await getSecurityStatus();
   return <SecuritySettings twoFactorEnabled={status.twoFactorEnabled} />;
-}
-
-function Upcoming({ icon, title, phase, children }: { icon: ReactNode; title: string; phase: 1 | 2 | 3 | 4; children: ReactNode }) {
-  return (
-    <div className="flex items-start gap-3 p-5 [&>svg]:mt-0.5">
-      <span className="mt-0.5 text-subtle [&_svg]:size-4">{icon}</span>
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 text-[13.5px] font-medium text-foreground">
-          {title} <PhaseBadge phase={phase} />
-        </p>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">{children}</p>
-      </div>
-    </div>
-  );
 }

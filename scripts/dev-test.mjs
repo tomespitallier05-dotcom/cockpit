@@ -2,7 +2,8 @@
 // so manual or automated tests never touch your own local data.
 import { spawn } from "node:child_process";
 
-const env = { ...process.env, PGLITE_DIR: ".pglite-test" };
+// AI_MOCK: the AI pipeline runs end to end with deterministic local stand-ins.
+const env = { ...process.env, PGLITE_DIR: ".pglite-test", AI_MOCK: process.env.AI_MOCK ?? "1" };
 
 function run(command, args) {
   return new Promise((resolve, reject) => {

@@ -7,16 +7,18 @@ import { Logo } from "@/components/logo";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { NavLink } from "./nav-link";
-import { PRIMARY_NAV, PROJECTS_NAV, SETTINGS_NAV } from "./nav-config";
+import { NOTIFICATIONS_NAV, PRIMARY_NAV, PROJECTS_NAV, SETTINGS_NAV } from "./nav-config";
 import { useShell } from "./shell-provider";
 
 export function Sidebar({
   projects,
   inboxBadge,
+  notificationBadge,
   userMenu,
 }: {
   projects: ReactNode;
   inboxBadge: ReactNode;
+  notificationBadge?: ReactNode;
   userMenu: ReactNode;
 }) {
   const { setPaletteOpen, capture, openProjectDialog } = useShell();
@@ -92,6 +94,9 @@ export function Sidebar({
       </div>
 
       <div className="flex flex-col gap-0.5 border-t border-sidebar-border px-3 pt-2 pb-3">
+        <NavLink href={NOTIFICATIONS_NAV.href} icon={<NOTIFICATIONS_NAV.icon />} trailing={notificationBadge}>
+          {NOTIFICATIONS_NAV.label}
+        </NavLink>
         <NavLink href={SETTINGS_NAV.href} icon={<SETTINGS_NAV.icon />}>
           {SETTINGS_NAV.label}
         </NavLink>

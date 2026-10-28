@@ -1,7 +1,7 @@
 "use client";
 
 import { defaultFilter } from "cmdk";
-import { CheckCircle2Icon, CircleIcon, FolderPlusIcon, ListTodoIcon, LogOutIcon, Loader2Icon, UserPlusIcon, UserIcon, ZapIcon } from "lucide-react";
+import { BotIcon, CheckCircle2Icon, CircleIcon, FolderPlusIcon, ListTodoIcon, LogOutIcon, Loader2Icon, UserPlusIcon, UserIcon, ZapIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { EntryGlyph } from "@/components/entry-type-icon";
@@ -111,6 +111,21 @@ function PaletteBody({ projects }: { projects: PaletteProject[] }) {
             )}
           </CommandEmpty>
 
+          {trimmed.length >= 3 ? (
+            <CommandGroup heading="Assistant">
+              <CommandItem
+                value={`demander assistant ${trimmed}`}
+                keywords={matchAlways}
+                onSelect={() => go(`/assistant?q=${encodeURIComponent(trimmed)}`)}
+              >
+                <BotIcon />
+                <span className="min-w-0 flex-1 truncate">
+                  Demander à l&apos;assistant : <span className="text-foreground">{trimmed}</span>
+                </span>
+              </CommandItem>
+            </CommandGroup>
+          ) : null}
+
           {hasResults ? (
             <>
               {results.entries.length ? (
@@ -130,6 +145,7 @@ function PaletteBody({ projects }: { projects: PaletteProject[] }) {
                             <span className="block truncate text-xs text-subtle">{item.snippet}</span>
                           ) : null}
                         </span>
+                        {item.semantic ? <span className="shrink-0 text-xs text-primary/80">par le sens</span> : null}
                         {item.projectName ? <span className="shrink-0 text-xs text-subtle">{item.projectName}</span> : null}
                       </CommandItem>
                   ))}

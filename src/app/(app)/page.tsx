@@ -12,9 +12,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { CallBriefButton } from "@/components/contacts/call-brief";
+import { ProgressMeter } from "@/components/charts";
 import { NumberTicker } from "@/components/number-ticker";
+import { PrepareEventButton, RefreshBriefButton } from "@/components/today/today-client";
 import { PageContainer } from "@/components/page-header";
-import { PhaseBadge } from "@/components/phase-badge";
 import { ProjectIcon, projectColor } from "@/components/project-icon";
 import { Reveal } from "@/components/reveal";
 import { CardEmpty, SectionCard } from "@/components/section-card";
@@ -22,7 +24,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatLongDate, formatRelative, greetingFor } from "@/lib/format";
 import { PROJECT_STATUS_LABELS, PROJECT_TEMPLATES } from "@/lib/project-catalog";
 import { PriorityList } from "@/components/tasks/priority-list";
-import { endOfDayIn } from "@/lib/dates";
+import { dayKey, endOfDayIn, shortDayLabel, timeLabel } from "@/lib/dates";
+import { after } from "next/server";
+import { and, asc, eq, gte, isNull, lte } from "drizzle-orm";
+import { buildBrief, getBrief } from "@/server/ai/brief";
+import { claudeAvailable } from "@/server/ai/config";
+import { listGoals } from "@/server/data/goals";
+import { db } from "@/server/db";
+import { contact, entry } from "@/server/db/schema";
+import { googleAccount, upcomingEvents } from "@/server/google";
 import { requireUser } from "@/server/dal";
 import { toTaskView } from "@/server/data/task-views";
 import { todayPriorities } from "@/server/data/tasks";
@@ -63,30 +73,27 @@ export default function TodayPage() {
           </Reveal>
 
           <Reveal index={2}>
-            <SectionCard
-              title="Prochain appel"
-              description="Avec son brief de préparation."
-              action={<PhaseBadge phase={2} />}
-              className="h-full"
-            >
-              <CardEmpty icon={<PhoneIcon />}>
-                Avant chaque appel : ce qui a été dit la dernière fois, les actions promises et les
-                questions à poser.
-              </CardEmpty>
+            <SectionCard title="Prochains appels" description="Les 7 prochains jours, avec leur préparation." className="h-full">
+              <Suspense fallback={<ActivitySkeleton />}>
+                <UpcomingCalls />
+              </Suspense>
             </SectionCard>
           </Reveal>
 
           <Reveal index={3} className="lg:col-span-2">
             <SectionCard
-              title="Objectifs du mois"
+              title="Objectifs en cours"
               description="Mesurables et reliés à tes KPI : la progression se calcule seule."
-              action={<PhaseBadge phase={3} />}
+              action={
+                <Link href="/objectifs" className="inline-flex items-center gap-1 text-[12.5px] text-subtle transition-colors hover:text-foreground">
+                  Tous <ArrowUpRightIcon className="size-3" />
+                </Link>
+              }
               className="h-full"
             >
-              <CardEmpty icon={<GoalIcon />}>
-                Fixe 1 à 3 objectifs par projet (CA, marge, abonnés, publications…) et suis-les
-                semaine après semaine.
-              </CardEmpty>
+              <Suspense fallback={<ActivitySkeleton />}>
+                <GoalsSummary />
+              </Suspense>
             </SectionCard>
           </Reveal>
 
@@ -119,12 +126,151 @@ async function Greeting() {
       <h1 className="mt-1.5 text-[28px] font-semibold tracking-[-0.025em] text-foreground sm:text-[32px]">
         {greetingFor(now, me.timezone)}, {firstName}.
       </h1>
-      <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
-        <SparklesIcon className="mr-1.5 inline size-3.5 -translate-y-px text-primary" />
-        Ton brief du jour sera rédigé ici par l&apos;IA, à partir de tes priorités et de tes appels.
-        <PhaseBadge phase={2} className="ml-2 align-middle" />
-      </p>
+      <Suspense fallback={<Skeleton className="mt-3 h-3.5 w-96 max-w-full rounded" />}>
+        <BriefLine />
+      </Suspense>
     </Reveal>
+  );
+}
+
+/** The morning brief's headline: built from rules on first view, rewritten by Claude by the daily job. */
+async function BriefLine() {
+  const me = await requireUser();
+  const today = dayKey(new Date(), me.timezone);
+  let brief = await getBrief(me.workspaceId, today);
+  if (!brief) {
+    const built = await buildBrief(me.workspaceId, { useAi: false });
+    brief = { content: built.content, generatedBy: built.generatedBy, createdAt: new Date() };
+    if (claudeAvailable()) after(() => buildBrief(me.workspaceId, { useAi: true }).catch((error) => console.error("brief", error)));
+  }
+  const { content } = brief;
+  const done = content.counts.doneYesterday;
+  return (
+    <div className="mt-2 max-w-3xl">
+      <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <SparklesIcon className="mr-1.5 inline size-3.5 -translate-y-px text-primary" />
+        {content.focus}
+        {done ? ` Hier : ${done} tâche${done > 1 ? "s" : ""} terminée${done > 1 ? "s" : ""}.` : ""}
+      </p>
+      {content.tip ? (
+        <p className="mt-1.5 text-[13px] text-muted-foreground">
+          <LightbulbIcon className="mr-1.5 inline size-3.5 -translate-y-px text-warning" />
+          <span className="text-subtle">Conseil à appliquer : </span>
+          {content.tip.content}
+        </p>
+      ) : null}
+      <div className="mt-1 -ml-2">
+        <RefreshBriefButton ai={claudeAvailable()} />
+      </div>
+    </div>
+  );
+}
+
+type UpcomingItem = { key: string; title: string; at: Date; detail: string; href?: string; action?: React.ReactNode };
+
+async function UpcomingCalls() {
+  const me = await requireUser();
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 7 * 86400000);
+  const [google, calls, people] = await Promise.all([
+    googleAccount(me.id).catch(() => null),
+    db
+      .select({ id: entry.id, title: entry.title, at: entry.occurredAt, meta: entry.meta })
+      .from(entry)
+      .where(and(eq(entry.workspaceId, me.workspaceId), eq(entry.type, "call"), isNull(entry.deletedAt), gte(entry.occurredAt, now), lte(entry.occurredAt, horizon)))
+      .orderBy(asc(entry.occurredAt))
+      .limit(5),
+    db
+      .select({ id: contact.id, name: contact.name, at: contact.nextInteractionAt })
+      .from(contact)
+      .where(and(eq(contact.workspaceId, me.workspaceId), isNull(contact.deletedAt), gte(contact.nextInteractionAt, now), lte(contact.nextInteractionAt, horizon)))
+      .orderBy(asc(contact.nextInteractionAt))
+      .limit(5),
+  ]);
+  const events = google?.calendar ? await upcomingEvents(me.id, 7).catch(() => []) : [];
+  const prepared = new Set(calls.map((c) => (c.meta as { calendarEventId?: string }).calendarEventId).filter(Boolean));
+  const items: UpcomingItem[] = [
+    ...events
+      .filter((e) => !prepared.has(e.id))
+      .map((e) => ({
+        key: e.id,
+        title: e.title,
+        at: e.start,
+        detail: e.attendees.map((a) => a.name ?? a.email).join(", "),
+        action: <PrepareEventButton eventId={e.id} />,
+      })),
+    ...calls.map((c) => ({ key: c.id, title: c.title ?? "Appel", at: c.at, detail: "Fiche prête", href: `/entrees/${c.id}` })),
+    ...people.map((p) => ({
+      key: p.id,
+      title: p.name,
+      at: p.at!,
+      detail: "Échange prévu",
+      action: <CallBriefButton contactId={p.id} timeZone={me.timezone} label="Brief" />,
+    })),
+  ]
+    .sort((a, b) => a.at.getTime() - b.at.getTime())
+    .slice(0, 5);
+
+  if (items.length === 0) {
+    return (
+      <CardEmpty icon={<PhoneIcon />}>
+        {google?.calendar
+          ? "Aucun appel dans les 7 prochains jours."
+          : "Connecte Google Agenda dans les réglages pour voir tes appels ici, ou fixe une prochaine interaction sur un contact."}
+      </CardEmpty>
+    );
+  }
+  return (
+    <ul className="-mx-1 divide-y divide-border">
+      {items.map((item) => (
+        <li key={item.key} className="flex items-center gap-3 px-1 py-2.5">
+          <div className="min-w-0 flex-1">
+            {item.href ? (
+              <Link href={item.href} className="block truncate text-[13px] text-foreground hover:underline">
+                {item.title}
+              </Link>
+            ) : (
+              <p className="truncate text-[13px] text-foreground">{item.title}</p>
+            )}
+            <p className="truncate text-[11.5px] text-subtle">
+              {shortDayLabel(item.at, me.timezone)} · {timeLabel(item.at, me.timezone)}
+              {item.detail ? ` · ${item.detail}` : ""}
+            </p>
+          </div>
+          {item.action}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+async function GoalsSummary() {
+  const goals = (await listGoals()).slice(0, 3);
+  if (goals.length === 0) {
+    return (
+      <CardEmpty icon={<GoalIcon />}>
+        Fixe 1 à 3 objectifs par projet (CA, marge, abonnés, publications…) et suis-les semaine après semaine.
+      </CardEmpty>
+    );
+  }
+  return (
+    <ul className="space-y-4">
+      {goals.map((goal) => (
+        <li key={goal.id}>
+          <div className="flex items-baseline justify-between gap-3 text-[13px]">
+            <span className="truncate text-foreground">{goal.title}</span>
+            <span className="shrink-0 text-[12px] tabular-nums text-subtle">
+              {goal.kind === "metric" ? `${Math.round(goal.progress * 100)} %` : `${goal.daysLeft} j`}
+            </span>
+          </div>
+          {goal.kind === "metric" ? (
+            <div className="mt-2">
+              <ProgressMeter value={goal.progress} expected={goal.expected} label={goal.title} />
+            </div>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -158,7 +304,7 @@ async function TodayStats() {
     { label: "Projets actifs", value: stats.activeProjects, href: "/projets", icon: FolderIcon },
     { label: "Tâches ouvertes", value: stats.openTasks, href: "/taches", icon: ListTodoIcon },
     { label: "À trier dans l'Inbox", value: stats.inbox, href: "/inbox", icon: InboxIcon },
-    { label: "Conseils à appliquer", value: stats.pendingAdvice, href: "/contacts", icon: LightbulbIcon },
+    { label: "Conseils à appliquer", value: stats.pendingAdvice, href: "/insights?vue=advice", icon: LightbulbIcon },
   ];
 
   return (

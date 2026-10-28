@@ -2,7 +2,6 @@ import {
   BookOpenIcon,
   FileIcon,
   FileTextIcon,
-  GoalIcon,
   HistoryIcon,
   ImageIcon,
   LightbulbIcon,

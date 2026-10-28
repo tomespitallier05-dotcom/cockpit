@@ -1,4 +1,5 @@
 import {
+  BellIcon,
   BotIcon,
   CalendarRangeIcon,
   ChartNoAxesColumnIcon,
@@ -47,7 +48,14 @@ export const SETTINGS_NAV: NavItem = {
   shortcut: "r",
 };
 
-export const ALL_NAV: NavItem[] = [...PRIMARY_NAV, PROJECTS_NAV, SETTINGS_NAV];
+export const NOTIFICATIONS_NAV: NavItem = {
+  href: "/notifications",
+  label: "Notifications",
+  icon: BellIcon,
+  shortcut: "n",
+};
+
+export const ALL_NAV: NavItem[] = [...PRIMARY_NAV, PROJECTS_NAV, NOTIFICATIONS_NAV, SETTINGS_NAV];
 
 export function isActivePath(pathname: string, href: string) {
   if (href === "/") return pathname === "/";

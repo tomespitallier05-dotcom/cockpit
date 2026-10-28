@@ -5,6 +5,7 @@ import { InboxBadge } from "@/components/shell/inbox-badge";
 import { MobileNav, MobileTopBar } from "@/components/shell/mobile-nav";
 import { ShellDataFallback, ShellDataLoader } from "@/components/shell/shell-data-loader";
 import { ShellProvider } from "@/components/shell/shell-provider";
+import { NotificationBadge } from "@/components/shell/notification-badge";
 import { Sidebar } from "@/components/shell/sidebar";
 import { SidebarProjects, SidebarProjectsSkeleton } from "@/components/shell/sidebar-projects";
 import { UserMenuLoader, UserMenuSkeleton } from "@/components/shell/user-menu-loader";
@@ -23,6 +24,11 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         inboxBadge={
           <Suspense fallback={null}>
             <InboxBadge />
+          </Suspense>
+        }
+        notificationBadge={
+          <Suspense fallback={null}>
+            <NotificationBadge />
           </Suspense>
         }
         userMenu={

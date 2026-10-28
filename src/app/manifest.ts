@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-// Installable shell. Offline capture and the share target arrive in phase 1.
+// Installable shell with a share target: "Share → Cockpit" posts to /partager.
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Cockpit",
@@ -12,5 +12,16 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#0a0a0b",
     theme_color: "#0a0a0b",
     icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" }],
+    share_target: {
+      action: "/partager",
+      method: "POST",
+      enctype: "multipart/form-data",
+      params: {
+        title: "title",
+        text: "text",
+        url: "url",
+        files: [{ name: "files", accept: ["image/*", "audio/*", "video/*", "application/pdf", "text/*"] }],
+      },
+    },
   };
 }
