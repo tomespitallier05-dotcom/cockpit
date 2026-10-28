@@ -11,7 +11,16 @@ import { Button } from "@/components/ui/button";
 import { CONTACT_RELATIONSHIPS } from "@/lib/entry-catalog";
 import { deleteContact } from "@/server/actions/contacts";
 
-export function ContactHeader({ contact, projects }: { contact: EditableContact; projects: ProjectOption[] }) {
+export function ContactHeader({
+  contact,
+  projects,
+  actions,
+}: {
+  contact: EditableContact;
+  projects: ProjectOption[];
+  /** Extra buttons before Edit (e.g. prepare a call). */
+  actions?: React.ReactNode;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -62,7 +71,8 @@ export function ContactHeader({ contact, projects }: { contact: EditableContact;
         </div>
         {contact.notes ? <p className="mt-4 max-w-2xl text-[13.5px] whitespace-pre-line text-muted-foreground">{contact.notes}</p> : null}
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
+        {actions}
         <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
           <PencilIcon /> Modifier
         </Button>

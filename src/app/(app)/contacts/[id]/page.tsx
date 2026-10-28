@@ -17,6 +17,9 @@ import { getContactDetail, listContactOptions } from "@/server/data/contacts";
 import { toTaskView } from "@/server/data/task-views";
 import { listTasks } from "@/server/data/tasks";
 import { listProjects } from "@/server/queries";
+import { CallBriefButton } from "@/components/contacts/call-brief";
+import { InsightList } from "@/components/insights/insight-list";
+import { listInsights } from "@/server/data/insights";
 import { ContactHeader } from "./contact-header";
 
 export const metadata: Metadata = { title: "Contact" };
@@ -39,12 +42,13 @@ export default function ContactPage({ params }: PageProps<"/contacts/[id]">) {
 async function ContactLoader({ params }: { params: PageProps<"/contacts/[id]">["params"] }) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const [me, contact, projects, contacts, tasks] = await Promise.all([
+  const [me, contact, projects, contacts, tasks, insights] = await Promise.all([
     requireUser(),
     getContactDetail(id),
     listProjects(),
     listContactOptions(),
     listTasks({ contactId: id }),
+    listInsights({ contactId: id, limit: 50 }),
   ]);
   if (!contact) notFound();
   const projectOptions = projects.map(({ id: projectId, name, icon, color }) => ({ id: projectId, name, icon, color }));
@@ -67,6 +71,7 @@ async function ContactLoader({ params }: { params: PageProps<"/contacts/[id]">["
             projectIds: contact.projectIds,
           }}
           projects={projectOptions}
+          actions={<CallBriefButton contactId={contact.id} timeZone={me.timezone} />}
         />
       </Reveal>
 
@@ -98,6 +103,16 @@ async function ContactLoader({ params }: { params: PageProps<"/contacts/[id]">["
           defaultContactId={contact.id}
         />
       </section>
+
+      {insights.length ? (
+        <section>
+          <h2 className="mb-1 text-[13.5px] font-medium text-foreground">Ses conseils et ce qu&apos;il a dit</h2>
+          <p className="mb-3 text-[12.5px] text-subtle">Extraits de vos échanges. Marque un conseil appliqué dès que c&apos;est fait.</p>
+          <div className="surface px-5 py-2">
+            <InsightList insights={insights} timeZone={me.timezone} />
+          </div>
+        </section>
+      ) : null}
 
       <section>
         <h2 className="mb-3 text-[13.5px] font-medium text-foreground">Historique</h2>

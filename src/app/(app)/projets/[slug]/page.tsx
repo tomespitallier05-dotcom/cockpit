@@ -37,6 +37,14 @@ import { toTaskView } from "@/server/data/task-views";
 import { listTasks } from "@/server/data/tasks";
 import { getProjectBySlug, listProjects } from "@/server/queries";
 import { EditProjectButton } from "@/components/projects/project-buttons";
+import { GoalsView } from "@/components/goals/goals-view";
+import { InsightList } from "@/components/insights/insight-list";
+import { ContentPipeline, type ContentItem } from "@/components/modules/content-pipeline";
+import { InventoryView, type InventoryItem } from "@/components/modules/inventory-view";
+import { dayKey } from "@/lib/dates";
+import { listGoals, listMetrics } from "@/server/data/goals";
+import { listInsights } from "@/server/data/insights";
+import { inventoryStats, listContent, listInventory } from "@/server/data/modules";
 import { ProjectTabs, type ProjectTab } from "./project-tabs";
 
 export const metadata: Metadata = { title: "Projet" };
@@ -56,14 +64,20 @@ async function ProjectView({ params }: { params: PageProps<"/projets/[slug]">["p
   const [project, me] = await Promise.all([getProjectBySlug(slug), requireUser()]);
   if (!project) notFound();
 
-  const [entries, tasks, contacts, files, projects, contactOptions] = await Promise.all([
+  const [entries, tasks, contacts, files, projects, contactOptions, insights, goals, metrics, inventory, content] = await Promise.all([
     listEntries({ projectId: project.id }),
     listTasks({ projectId: project.id }),
     listProjectContacts(project.id),
     listProjectFiles(project.id),
     listProjects(),
     listContactOptions(),
+    listInsights({ projectId: project.id, limit: 100 }),
+    listGoals({ projectId: project.id }),
+    listMetrics({ projectId: project.id }),
+    project.template === "resale" ? listInventory(project.id) : Promise.resolve([]),
+    project.template === "content" ? listContent(project.id) : Promise.resolve([]),
   ]);
+  const today = dayKey(new Date(), me.timezone);
 
   const template = PROJECT_TEMPLATES[project.template];
   const projectOptions = projects.map(({ id, name, icon, color }) => ({ id, name, icon, color }));
@@ -141,13 +155,15 @@ async function ProjectView({ params }: { params: PageProps<"/projets/[slug]">["p
     {
       key: "knowledge",
       label: "Connaissances",
-      content: (
+      content: insights.length ? (
+        <div className="surface px-5 py-2">
+          <InsightList insights={insights} timeZone={me.timezone} />
+        </div>
+      ) : (
         <EmptyState
           icon={LightbulbIcon}
           title="Ce que ce projet t'a appris"
-          description="Conseils, décisions, erreurs et leçons extraits de tes entrées par l'IA, chacun relié à sa source."
-          phase={2}
-          features={["Conseils : nouveau, testé, appliqué", "Erreurs répétées détectées", "Citation et lien vers la source", "Recherche par le sens"]}
+          description="Les conseils, décisions, erreurs et leçons apparaissent ici dès qu'une entrée du projet est analysée."
         />
       ),
     },
@@ -168,14 +184,34 @@ async function ProjectView({ params }: { params: PageProps<"/projets/[slug]">["p
     {
       key: "goals",
       label: "Objectifs & KPI",
-      content: (
-        <EmptyState icon={GoalIcon} title="Indicateurs et objectifs" description="3 à 5 KPI par projet, mis à jour chaque semaine en 30 secondes." phase={3} />
-      ),
+      content: <GoalsView goals={goals} metrics={metrics} projects={projectOptions} today={today} projectId={project.id} />,
     },
   ];
 
   if (template.module) {
-    tabs.push({ key: template.module.key, label: template.module.label, content: moduleContent(project.template) });
+    tabs.push({
+      key: template.module.key,
+      label: template.module.label,
+      content:
+        project.template === "resale" ? (
+          <InventoryView projectId={project.id} items={inventory as InventoryItem[]} stats={inventoryStats(inventory)} today={today} />
+        ) : project.template === "content" ? (
+          <ContentPipeline projectId={project.id} items={content as ContentItem[]} />
+        ) : project.template === "business" ? (
+          (() => {
+            const decisions = insights.filter((item) => item.type === "decision");
+            return decisions.length ? (
+              <div className="surface px-5 py-2">
+                <InsightList insights={decisions} timeZone={me.timezone} />
+              </div>
+            ) : (
+              moduleContent(project.template)
+            );
+          })()
+        ) : (
+          moduleContent(project.template)
+        ),
+    });
   }
 
   tabs.push(
@@ -311,9 +347,7 @@ function moduleContent(templateKey: ProjectTemplate) {
         <EmptyState
           icon={ScaleIcon}
           title="Registre de décisions"
-          description="Ce que tu as décidé, pourquoi, et ce que ça a donné."
-          phase={3}
-          features={["Décision, raisons, alternatives écartées", "Date de réévaluation rappelée", "Résultat constaté après coup", "Journal d'expériences : hypothèse → résultat"]}
+          description="Les décisions extraites de tes appels et de tes notes s'accumulent ici, chacune avec sa source."
         />
       );
     default:
