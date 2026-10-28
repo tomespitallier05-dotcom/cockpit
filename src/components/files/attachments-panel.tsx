@@ -1,6 +1,7 @@
 "use client";
 
 import { DownloadIcon, FileIcon, FileTextIcon, ImageIcon, Loader2Icon, PaperclipIcon, Trash2Icon, UploadIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type DragEvent } from "react";
 import { toast } from "sonner";
 import { cn } from "cn";
@@ -33,12 +34,14 @@ export function AttachmentsPanel({
   files: AttachmentView[];
   uploadConfig: UploadConfig;
 }) {
+  const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [removing, startRemoving] = useTransition();
 
   const send = async (list: File[]) => {
+    if (list.length === 0) return;
     for (const file of list) {
       setProgress((current) => ({ ...current, [file.name]: 0 }));
       try {
@@ -56,6 +59,8 @@ export function AttachmentsPanel({
         });
       }
     }
+    // Local uploads go through a Route Handler, which cannot refresh the page itself.
+    router.refresh();
   };
 
   const onDrop = (event: DragEvent) => {

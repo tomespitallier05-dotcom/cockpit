@@ -2,11 +2,11 @@
 
 import { CheckIcon, Loader2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { ProjectIcon, projectColor } from "@/components/project-icon";
-import { useShell } from "@/components/shell/shell-provider";
+import { useShell, type EditableProject } from "@/components/shell/shell-provider";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -27,30 +27,28 @@ import { createProject, updateProject } from "@/server/actions/projects";
 
 /** Create or edit a project. Mounted once in the shell; opened through useShell(). */
 export function ProjectDialog() {
-  const router = useRouter();
   const { projectDialog, closeProjectDialog } = useShell();
-  const editing = projectDialog.project;
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [template, setTemplate] = useState<ProjectTemplate>("blank");
-  const [icon, setIcon] = useState<ProjectIconName>("folder");
-  const [color, setColor] = useState<ProjectColor>("slate");
-  const [status, setStatus] = useState<ProjectStatus>("active");
-  const [touchedLook, setTouchedLook] = useState(false);
+  return (
+    <Dialog open={projectDialog.open} onOpenChange={(open) => (open ? null : closeProjectDialog())}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
+        {/* Remounted on every open, so the fields always start from the project (or blank). */}
+        <ProjectForm editing={projectDialog.project} onClose={closeProjectDialog} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProjectForm({ editing, onClose }: { editing: EditableProject | null; onClose: () => void }) {
+  const router = useRouter();
+  const [name, setName] = useState(editing?.name ?? "");
+  const [description, setDescription] = useState(editing?.description ?? "");
+  const [template, setTemplate] = useState<ProjectTemplate>(editing?.template ?? "blank");
+  const [icon, setIcon] = useState<ProjectIconName>((editing?.icon as ProjectIconName) ?? "folder");
+  const [color, setColor] = useState<ProjectColor>((editing?.color as ProjectColor) ?? "slate");
+  const [status, setStatus] = useState<ProjectStatus>(editing?.status ?? "active");
+  const [touchedLook, setTouchedLook] = useState(Boolean(editing));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (!projectDialog.open) return;
-    setError(null);
-    setTouchedLook(Boolean(editing));
-    setName(editing?.name ?? "");
-    setDescription(editing?.description ?? "");
-    setTemplate(editing?.template ?? "blank");
-    setIcon((editing?.icon as ProjectIconName) ?? "folder");
-    setColor((editing?.color as ProjectColor) ?? "slate");
-    setStatus(editing?.status ?? "active");
-  }, [projectDialog.open, editing]);
 
   const chooseTemplate = (key: ProjectTemplate) => {
     setTemplate(key);
@@ -72,15 +70,13 @@ export function ProjectDialog() {
         setError(result.error);
         return;
       }
-      closeProjectDialog();
+      onClose();
       toast.success(editing ? "Projet mis à jour" : "Projet créé");
       router.push(`/projets/${result.data.slug}`);
     });
   };
 
   return (
-    <Dialog open={projectDialog.open} onOpenChange={(open) => (open ? null : closeProjectDialog())}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         <form onSubmit={submit} className="flex flex-col gap-5">
           <DialogHeader>
             <DialogTitle>{editing ? "Modifier le projet" : "Nouveau projet"}</DialogTitle>
@@ -225,7 +221,7 @@ export function ProjectDialog() {
           </p>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={closeProjectDialog}>
+            <Button type="button" variant="ghost" onClick={onClose}>
               Annuler
             </Button>
             <Button type="submit" disabled={pending || !name.trim()}>
@@ -234,7 +230,5 @@ export function ProjectDialog() {
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
   );
 }

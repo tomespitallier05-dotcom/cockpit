@@ -2,7 +2,7 @@
 
 import { Loader2Icon, PaperclipIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import { useRef, useState, useTransition, type FormEvent } from "react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { EntryTypeIcon } from "@/components/entry-type-icon";
@@ -21,26 +21,46 @@ const QUICK_TYPES: CaptureType[] = ["note", "call", "message", "link", "journal"
 
 /** Quick capture: the fastest path from a thought to the app, in under 5 seconds. */
 export function CaptureDialog({ projects, uploadConfig }: { projects: ProjectOption[]; uploadConfig: UploadConfig | null }) {
-  const router = useRouter();
   const { captureOpen, setCaptureOpen, captureProjectId } = useShell();
+  return (
+    <Dialog open={captureOpen} onOpenChange={setCaptureOpen}>
+      <DialogContent className="top-[12%] translate-y-0 gap-0 p-0 sm:max-w-xl" showCloseButton={false}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>Capturer</DialogTitle>
+          <DialogDescription>Note, appel, message ou lien, en quelques secondes.</DialogDescription>
+        </DialogHeader>
+        {/* The content unmounts when closed, so every capture starts from a blank form. */}
+        <CaptureForm
+          projects={projects}
+          uploadConfig={uploadConfig}
+          initialProjectId={captureProjectId}
+          onDone={() => setCaptureOpen(false)}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CaptureForm({
+  projects,
+  uploadConfig,
+  initialProjectId,
+  onDone,
+}: {
+  projects: ProjectOption[];
+  uploadConfig: UploadConfig | null;
+  initialProjectId: string | null;
+  onDone: () => void;
+}) {
+  const router = useRouter();
   const [type, setType] = useState<CaptureType>("note");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [url, setUrl] = useState("");
-  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(initialProjectId);
   const [files, setFiles] = useState<File[]>([]);
   const [pending, startTransition] = useTransition();
   const fileInput = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!captureOpen) return;
-    setType("note");
-    setTitle("");
-    setBody("");
-    setUrl("");
-    setFiles([]);
-    setProjectId(captureProjectId);
-  }, [captureOpen, captureProjectId]);
 
   const empty = !title.trim() && !body.trim() && !url.trim() && files.length === 0;
 
@@ -69,8 +89,10 @@ export function CaptureDialog({ projects, uploadConfig }: { projects: ProjectOpt
           }
         }
         if (failures.length) toast.error("Certains fichiers n'ont pas été envoyés", { description: failures.join("\n") });
+        // Local uploads go through a Route Handler, which cannot refresh the page itself.
+        router.refresh();
       }
-      setCaptureOpen(false);
+      onDone();
       toast.success(projectId ? "Entrée enregistrée" : "Capturé dans l'Inbox", {
         action: { label: "Ouvrir", onClick: () => router.push(`/entrees/${entryId}`) },
       });
@@ -83,22 +105,15 @@ export function CaptureDialog({ projects, uploadConfig }: { projects: ProjectOpt
   };
 
   return (
-    <Dialog open={captureOpen} onOpenChange={setCaptureOpen}>
-      <DialogContent
-        className="top-[12%] translate-y-0 gap-0 p-0 sm:max-w-xl"
-        showCloseButton={false}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-            event.preventDefault();
-            save();
-          }
-        }}
-      >
-        <DialogHeader className="sr-only">
-          <DialogTitle>Capturer</DialogTitle>
-          <DialogDescription>Note, appel, message ou lien, en quelques secondes.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={onSubmit}>
+        <form
+          onSubmit={onSubmit}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              save();
+            }
+          }}
+        >
           <div className="flex flex-wrap gap-1 border-b border-border p-2">
             {QUICK_TYPES.map((key) => (
               <button
@@ -200,7 +215,5 @@ export function CaptureDialog({ projects, uploadConfig }: { projects: ProjectOpt
             </div>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
   );
 }

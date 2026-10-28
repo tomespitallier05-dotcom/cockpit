@@ -2,7 +2,7 @@
 
 import { SearchIcon, UserPlusIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ContactDialog } from "@/components/contacts/contact-dialog";
 import type { ProjectOption } from "@/components/pickers";
 import { initials } from "@/lib/format";
@@ -34,8 +34,13 @@ export function ContactsView({
   openNew: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const [creating, setCreating] = useState(false);
-  useEffect(() => setCreating(openNew), [openNew]);
+  const [creating, setCreating] = useState(openNew);
+  // ?nouveau=1 (from ⌘K) opens the form, even when this page is already displayed.
+  const [seenOpenNew, setSeenOpenNew] = useState(openNew);
+  if (seenOpenNew !== openNew) {
+    setSeenOpenNew(openNew);
+    if (openNew) setCreating(true);
+  }
 
   const filtered = useMemo(() => {
     const q = normalize(query.trim());
@@ -46,18 +51,19 @@ export function ContactsView({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <div className="surface flex h-9 flex-1 items-center gap-2 px-3">
+        <div className="surface flex h-9 min-w-0 flex-1 items-center gap-2 px-3">
           <SearchIcon className="size-3.5 text-subtle" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Filtrer par nom, rôle, entreprise…"
             aria-label="Filtrer les contacts"
-            className="flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-subtle"
+            className="min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-subtle"
           />
         </div>
-        <Button onClick={() => setCreating(true)}>
-          <UserPlusIcon /> Nouveau contact
+        <Button onClick={() => setCreating(true)} aria-label="Nouveau contact">
+          <UserPlusIcon />
+          <span className="hidden sm:inline">Nouveau contact</span>
         </Button>
       </div>
 

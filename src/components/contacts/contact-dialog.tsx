@@ -2,7 +2,7 @@
 
 import { CheckIcon, Loader2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import type { ProjectOption } from "@/components/pickers";
@@ -41,42 +41,42 @@ export function ContactDialog({
   projects: ProjectOption[];
   onClose: () => void;
 }) {
+  return (
+    <Dialog open={open} onOpenChange={(value) => (value ? null : onClose())}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
+        {/* Remounted on every open, so the fields always start from the contact (or blank). */}
+        <ContactForm contact={contact} projects={projects} onClose={onClose} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ContactForm({
+  contact,
+  projects,
+  onClose,
+}: {
+  contact: EditableContact | null;
+  projects: ProjectOption[];
+  onClose: () => void;
+}) {
   const router = useRouter();
-  const [form, setForm] = useState({
-    name: "",
-    role: "",
-    relationship: "other" as ContactRelationship,
-    company: "",
-    email: "",
-    phone: "",
-    instagram: "",
-    discord: "",
-    whatsapp: "",
-    notes: "",
-    next: "",
-  });
-  const [projectIds, setProjectIds] = useState<string[]>([]);
+  const [form, setForm] = useState(() => ({
+    name: contact?.name ?? "",
+    role: contact?.role ?? "",
+    relationship: contact?.relationship ?? ("other" as ContactRelationship),
+    company: contact?.company ?? "",
+    email: contact?.email ?? "",
+    phone: contact?.phone ?? "",
+    instagram: contact?.handles.instagram ?? "",
+    discord: contact?.handles.discord ?? "",
+    whatsapp: contact?.handles.whatsapp ?? "",
+    notes: contact?.notes ?? "",
+    next: contact?.nextInteractionAt ? toLocalDateValue(contact.nextInteractionAt) : "",
+  }));
+  const [projectIds, setProjectIds] = useState<string[]>(contact?.projectIds ?? []);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (!open) return;
-    setError(null);
-    setForm({
-      name: contact?.name ?? "",
-      role: contact?.role ?? "",
-      relationship: contact?.relationship ?? "other",
-      company: contact?.company ?? "",
-      email: contact?.email ?? "",
-      phone: contact?.phone ?? "",
-      instagram: contact?.handles.instagram ?? "",
-      discord: contact?.handles.discord ?? "",
-      whatsapp: contact?.handles.whatsapp ?? "",
-      notes: contact?.notes ?? "",
-      next: contact?.nextInteractionAt ? toLocalDateValue(contact.nextInteractionAt) : "",
-    });
-    setProjectIds(contact?.projectIds ?? []);
-  }, [open, contact]);
 
   const set = (key: keyof typeof form) => (event: { target: { value: string } }) =>
     setForm((current) => ({ ...current, [key]: event.target.value }));
@@ -108,8 +108,6 @@ export function ContactDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(value) => (value ? null : onClose())}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>{contact ? "Modifier le contact" : "Nouveau contact"}</DialogTitle>
@@ -190,8 +188,6 @@ export function ContactDialog({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 

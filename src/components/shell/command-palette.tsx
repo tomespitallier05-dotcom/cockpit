@@ -4,7 +4,7 @@ import { defaultFilter } from "cmdk";
 import { CheckCircle2Icon, CircleIcon, FolderPlusIcon, ListTodoIcon, LogOutIcon, Loader2Icon, UserPlusIcon, UserIcon, ZapIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { entryTypeIcon } from "@/components/entry-type-icon";
+import { EntryGlyph } from "@/components/entry-type-icon";
 import { ProjectIcon } from "@/components/project-icon";
 import {
   Command,
@@ -46,35 +46,45 @@ const KEYWORDS: Record<string, string[]> = {
 const NO_RESULTS: SearchResults = { entries: [], tasks: [], contacts: [], projects: [] };
 
 export function CommandPalette({ projects }: { projects: PaletteProject[] }) {
+  const { paletteOpen, setPaletteOpen } = useShell();
+  return (
+    <CommandDialog
+      open={paletteOpen}
+      onOpenChange={setPaletteOpen}
+      title="Palette de commandes"
+      description="Rechercher dans Cockpit, aller à une page ou lancer une action"
+      className="border border-border bg-popover shadow-[var(--shadow-pop)] sm:max-w-xl"
+    >
+      {/* Mounted only while open: every opening starts with an empty query. */}
+      <PaletteBody projects={projects} />
+    </CommandDialog>
+  );
+}
+
+function PaletteBody({ projects }: { projects: PaletteProject[] }) {
   const router = useRouter();
-  const { paletteOpen, setPaletteOpen, capture, openProjectDialog } = useShell();
+  const { setPaletteOpen, capture, openProjectDialog } = useShell();
   const { signOut } = useSignOut();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResults>(NO_RESULTS);
+  const [fetched, setFetched] = useState<SearchResults>(NO_RESULTS);
   const [searching, startSearch] = useTransition();
-
-  useEffect(() => {
-    if (!paletteOpen) setQuery("");
-  }, [paletteOpen]);
+  const trimmed = query.trim();
+  const results = trimmed.length >= 2 ? fetched : NO_RESULTS;
 
   // Debounced server search; static items keep filtering instantly client-side.
   useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setResults(NO_RESULTS);
-      return;
-    }
+    if (trimmed.length < 2) return;
     const timer = setTimeout(() => {
       startSearch(async () => {
         try {
-          setResults(await searchEverything(q));
+          setFetched(await searchEverything(trimmed));
         } catch {
-          setResults(NO_RESULTS);
+          setFetched(NO_RESULTS);
         }
       });
     }, 160);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [trimmed]);
 
   const go = (href: string) => {
     setPaletteOpen(false);
@@ -85,16 +95,9 @@ export function CommandPalette({ projects }: { projects: PaletteProject[] }) {
   // query itself is passed as a keyword so cmdk never filters them out.
   const matchAlways = [query];
   const hasResults =
-    results.entries.length + results.tasks.length + results.contacts.length + results.projects.length > 0;
+    results.entries.length + results.tasks.length + results.contacts.length > 0;
 
   return (
-    <CommandDialog
-      open={paletteOpen}
-      onOpenChange={setPaletteOpen}
-      title="Palette de commandes"
-      description="Rechercher dans Cockpit, aller à une page ou lancer une action"
-      className="border border-border bg-popover shadow-[var(--shadow-pop)] sm:max-w-xl"
-    >
       <Command filter={frenchFilter}>
         <CommandInput placeholder="Rechercher partout, ou aller à…" value={query} onValueChange={setQuery} />
         <CommandList className="max-h-[min(460px,62vh)]">
@@ -112,9 +115,7 @@ export function CommandPalette({ projects }: { projects: PaletteProject[] }) {
             <>
               {results.entries.length ? (
                 <CommandGroup heading="Entrées">
-                  {results.entries.map((item) => {
-                    const Icon = entryTypeIcon(item.type);
-                    return (
+                  {results.entries.map((item) => (
                       <CommandItem
                         key={item.id}
                         value={`entree ${item.id} ${item.title ?? ""}`}
@@ -122,7 +123,7 @@ export function CommandPalette({ projects }: { projects: PaletteProject[] }) {
                         onSelect={() => go(`/entrees/${item.id}`)}
                         className="items-start"
                       >
-                        <Icon className="mt-0.5" style={{ color: entryTypeMeta(item.type).color }} />
+                        <EntryGlyph type={item.type} className="mt-0.5" style={{ color: entryTypeMeta(item.type).color }} />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate">{item.title || item.snippet || "Sans titre"}</span>
                           {item.title && item.snippet ? (
@@ -131,8 +132,7 @@ export function CommandPalette({ projects }: { projects: PaletteProject[] }) {
                         </span>
                         {item.projectName ? <span className="shrink-0 text-xs text-subtle">{item.projectName}</span> : null}
                       </CommandItem>
-                    );
-                  })}
+                  ))}
                 </CommandGroup>
               ) : null}
               {results.tasks.length ? (
@@ -236,6 +236,5 @@ export function CommandPalette({ projects }: { projects: PaletteProject[] }) {
           </CommandGroup>
         </CommandList>
       </Command>
-    </CommandDialog>
   );
 }

@@ -66,3 +66,29 @@ export function groupByDay<T>(items: T[], getDate: (item: T) => Date, timeZone: 
   }
   return groups;
 }
+
+/** Milliseconds to add to UTC to get the wall-clock time in `timeZone`. */
+function timeZoneOffsetMs(date: Date, timeZone: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+  const wallClockAsUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  return wallClockAsUtc - Math.floor(date.getTime() / 1000) * 1000;
+}
+
+/** The instant today ends (23:59:59.999) in the given timezone. */
+export function endOfDayIn(timeZone: string, now = new Date()) {
+  const naive = new Date(`${dayKey(now, timeZone)}T23:59:59.999Z`);
+  return new Date(naive.getTime() - timeZoneOffsetMs(naive, timeZone));
+}

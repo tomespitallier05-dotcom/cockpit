@@ -36,7 +36,7 @@ import { listEntries, listProjectFiles } from "@/server/data/entries";
 import { toTaskView } from "@/server/data/task-views";
 import { listTasks } from "@/server/data/tasks";
 import { getProjectBySlug, listProjects } from "@/server/queries";
-import { EditProjectButton } from "./project-actions";
+import { EditProjectButton } from "@/components/projects/project-buttons";
 import { ProjectTabs, type ProjectTab } from "./project-tabs";
 
 export const metadata: Metadata = { title: "Projet" };
@@ -75,7 +75,7 @@ async function ProjectView({ params }: { params: PageProps<"/projets/[slug]">["p
       key: "overview",
       label: "Vue d'ensemble",
       content: (
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="grid grid-cols-2 gap-3 lg:col-span-3 lg:grid-cols-4">
             {[
               { label: "Entrées", value: entries.length },

@@ -30,7 +30,8 @@ export async function GET(request: Request, { params }: RouteContext<"/api/fichi
       "Content-Type": row.mimeType,
       ...(file.size ? { "Content-Length": String(file.size) } : {}),
       "Content-Disposition": `${download ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(row.fileName)}`,
-      "Cache-Control": "private, max-age=300",
+      // Personal files never sit in the browser cache: every view re-checks the session.
+      "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
     },
   });

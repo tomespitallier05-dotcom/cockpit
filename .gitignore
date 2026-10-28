@@ -42,6 +42,7 @@ next-env.d.ts
 
 # local embedded database (PGlite)
 /.pglite
+/.pglite-test
 
 # env files: .env.example is the documented template
 !.env.example

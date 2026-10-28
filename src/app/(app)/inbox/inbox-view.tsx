@@ -34,20 +34,26 @@ function isTyping(target: EventTarget | null) {
 export function InboxView({ items, projects, timeZone }: { items: InboxItem[]; projects: ProjectOption[]; timeZone: string }) {
   const router = useRouter();
   const { capture, paletteOpen, captureOpen } = useShell();
-  const [list, setList] = useState(items);
-  const [index, setIndex] = useState(0);
+  // Triaged items disappear at once; the server list catches up on refresh.
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
+  const list = items.filter((item) => !hidden.has(item.id));
+  const [cursor, setIndex] = useState(0);
+  const index = Math.min(cursor, Math.max(list.length - 1, 0));
   const [pickerFor, setPickerFor] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const rows = useRef<(HTMLLIElement | null)[]>([]);
   // "G then P" is the global shortcut to Projects: do not treat that P as "file".
   const lastKey = useRef<{ key: string; at: number }>({ key: "", at: 0 });
 
-  // Server truth wins whenever it changes (new capture, refresh…).
-  useEffect(() => setList(items), [items]);
-  useEffect(() => setIndex((current) => Math.min(current, Math.max(list.length - 1, 0))), [list.length]);
   useEffect(() => rows.current[index]?.scrollIntoView({ block: "nearest" }), [index]);
 
-  const removeLocally = (id: string) => setList((current) => current.filter((item) => item.id !== id));
+  const removeLocally = (id: string) => setHidden((current) => new Set(current).add(id));
+  const restoreLocally = (id: string) =>
+    setHidden((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
 
   const file = (item: InboxItem, projectId?: string | null) => {
     removeLocally(item.id);
@@ -55,7 +61,7 @@ export function InboxView({ items, projects, timeZone }: { items: InboxItem[]; p
       const result = await triageEntry(item.id, projectId);
       if (!result.ok) {
         toast.error(result.error);
-        setList(items);
+        restoreLocally(item.id);
         return;
       }
       const project = projects.find((p) => p.id === projectId);
@@ -69,7 +75,7 @@ export function InboxView({ items, projects, timeZone }: { items: InboxItem[]; p
       const result = await deleteEntry(item.id);
       if (!result.ok) {
         toast.error(result.error);
-        setList(items);
+        restoreLocally(item.id);
         return;
       }
       toast("Entrée supprimée", { action: { label: "Annuler", onClick: () => void restoreEntry(item.id) } });
@@ -87,12 +93,12 @@ export function InboxView({ items, projects, timeZone }: { items: InboxItem[]; p
         case "j":
         case "ArrowDown":
           event.preventDefault();
-          setIndex((value) => Math.min(value + 1, list.length - 1));
+          setIndex(Math.min(index + 1, list.length - 1));
           break;
         case "k":
         case "ArrowUp":
           event.preventDefault();
-          setIndex((value) => Math.max(value - 1, 0));
+          setIndex(Math.max(index - 1, 0));
           break;
         case "Enter":
           if (current) {

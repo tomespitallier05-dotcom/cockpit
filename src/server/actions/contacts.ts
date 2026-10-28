@@ -34,18 +34,18 @@ function message(error: unknown) {
   return error instanceof z.ZodError ? new Error(error.issues[0]?.message ?? "Données invalides.") : error;
 }
 
-/** Empty strings from forms are stored as NULL. */
+/** Empty strings from forms are stored as NULL; project links are written separately. */
 function clean(data: z.output<typeof contactInput>) {
-  const { projectIds: _projectIds, ...fields } = data;
-  const handles = Object.fromEntries(Object.entries(fields.handles).filter(([, value]) => value));
   return {
-    ...fields,
-    role: fields.role || null,
-    company: fields.company || null,
-    email: fields.email || null,
-    phone: fields.phone || null,
-    notes: fields.notes || null,
-    handles,
+    name: data.name,
+    role: data.role || null,
+    relationship: data.relationship,
+    company: data.company || null,
+    email: data.email || null,
+    phone: data.phone || null,
+    handles: Object.fromEntries(Object.entries(data.handles).filter(([, value]) => value)),
+    notes: data.notes || null,
+    nextInteractionAt: data.nextInteractionAt,
   };
 }
 

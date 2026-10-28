@@ -127,6 +127,7 @@ export async function getRecentActivity(limit = 6): Promise<ActivityItem[]> {
       .select({
         id: entry.id,
         title: entry.title,
+        plainText: entry.plainText,
         type: entry.type,
         at: entry.occurredAt,
         color: project.color,
@@ -153,7 +154,7 @@ export async function getRecentActivity(limit = 6): Promise<ActivityItem[]> {
     ...entries.map((e) => ({
       id: e.id,
       kind: "entry" as const,
-      title: e.title ?? "Sans titre",
+      title: e.title || e.plainText.split("\n").find((line) => line.trim())?.trim().slice(0, 120) || "Sans titre",
       detail: e.projectName ?? undefined,
       color: e.color ?? undefined,
       at: e.at,

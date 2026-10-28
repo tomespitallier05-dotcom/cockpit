@@ -5,26 +5,31 @@ import {
   MessageSquareIcon,
   PhoneIcon,
   StickyNoteIcon,
-  type LucideIcon,
+  type LucideProps,
 } from "lucide-react";
 import { cn } from "cn";
-import { entryTypeMeta, type CaptureType } from "@/lib/entry-catalog";
+import { entryTypeMeta } from "@/lib/entry-catalog";
 
-const ICONS: Record<CaptureType, LucideIcon> = {
-  note: StickyNoteIcon,
-  call: PhoneIcon,
-  message: MessageSquareIcon,
-  link: LinkIcon,
-  file: FileIcon,
-  journal: BookHeartIcon,
-};
-
-export function entryTypeIcon(type: string): LucideIcon {
-  return ICONS[type as CaptureType] ?? StickyNoteIcon;
+/** The bare icon for an entry type. */
+export function EntryGlyph({ type, ...props }: { type: string } & LucideProps) {
+  switch (type) {
+    case "call":
+      return <PhoneIcon {...props} />;
+    case "message":
+      return <MessageSquareIcon {...props} />;
+    case "link":
+      return <LinkIcon {...props} />;
+    case "file":
+      return <FileIcon {...props} />;
+    case "journal":
+      return <BookHeartIcon {...props} />;
+    default:
+      return <StickyNoteIcon {...props} />;
+  }
 }
 
+/** The icon on a tinted tile, in the type's colour. */
 export function EntryTypeIcon({ type, className }: { type: string; className?: string }) {
-  const Icon = entryTypeIcon(type);
   const { color } = entryTypeMeta(type);
   return (
     <span
@@ -36,7 +41,7 @@ export function EntryTypeIcon({ type, className }: { type: string; className?: s
         boxShadow: `inset 0 0 0 1px color-mix(in oklch, ${color} 20%, transparent)`,
       }}
     >
-      <Icon strokeWidth={2.1} />
+      <EntryGlyph type={type} strokeWidth={2.1} />
     </span>
   );
 }

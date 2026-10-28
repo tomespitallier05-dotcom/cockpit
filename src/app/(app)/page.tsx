@@ -21,6 +21,11 @@ import { CardEmpty, SectionCard } from "@/components/section-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatLongDate, formatRelative, greetingFor } from "@/lib/format";
 import { PROJECT_STATUS_LABELS, PROJECT_TEMPLATES } from "@/lib/project-catalog";
+import { PriorityList } from "@/components/tasks/priority-list";
+import { endOfDayIn } from "@/lib/dates";
+import { requireUser } from "@/server/dal";
+import { toTaskView } from "@/server/data/task-views";
+import { todayPriorities } from "@/server/data/tasks";
 import { getRecentActivity, getTodayStats, listProjects } from "@/server/queries";
 import { getCurrentUser } from "@/server/session";
 
@@ -39,18 +44,21 @@ export default function TodayPage() {
           <TodayStats />
         </Suspense>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Reveal index={1} className="lg:col-span-2">
             <SectionCard
               title="Priorités du jour"
-              description="Trois au maximum, choisies chaque matin."
-              action={<PhaseBadge phase={1} />}
+              description="En retard, prévues aujourd'hui ou urgentes : trois au maximum."
+              action={
+                <Link href="/taches" className="inline-flex items-center gap-1 text-[12.5px] text-subtle transition-colors hover:text-foreground">
+                  Toutes <ArrowUpRightIcon className="size-3" />
+                </Link>
+              }
               className="h-full"
             >
-              <CardEmpty icon={<ListTodoIcon />}>
-                Aucune tâche pour l&apos;instant. Les tâches urgentes et celles promises à ton mentor
-                remonteront ici automatiquement.
-              </CardEmpty>
+              <Suspense fallback={<ActivitySkeleton />}>
+                <TodayPriorities />
+              </Suspense>
             </SectionCard>
           </Reveal>
 
@@ -118,6 +126,20 @@ async function Greeting() {
       </p>
     </Reveal>
   );
+}
+
+async function TodayPriorities() {
+  const me = await requireUser();
+  const tasks = await todayPriorities(endOfDayIn(me.timezone));
+  if (tasks.length === 0) {
+    return (
+      <CardEmpty icon={<ListTodoIcon />}>
+        Rien d&apos;urgent ni d&apos;en retard. Ajoute une échéance aux tâches qui comptent cette semaine, elles
+        remonteront ici le jour venu.
+      </CardEmpty>
+    );
+  }
+  return <PriorityList tasks={tasks.map(toTaskView)} timeZone={me.timezone} />;
 }
 
 function GreetingSkeleton() {

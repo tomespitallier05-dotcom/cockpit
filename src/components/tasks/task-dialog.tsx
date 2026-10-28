@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2Icon, Trash2Icon } from "lucide-react";
-import { useEffect, useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { toast } from "sonner";
 import { ProjectPicker, type ContactOption, type ProjectOption } from "@/components/pickers";
 import { Button } from "@/components/ui/button";
@@ -44,31 +44,37 @@ export function TaskDialog({
   contacts: ContactOption[];
   onClose: () => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<TaskStatus>("todo");
-  const [priority, setPriority] = useState<TaskPriority>("none");
-  const [due, setDue] = useState("");
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [promisedTo, setPromisedTo] = useState<string>(NONE);
-  const [estimate, setEstimate] = useState("");
-  const [actual, setActual] = useState("");
-  const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (!task) return;
-    setTitle(task.title);
-    setDescription(task.description ?? "");
-    setStatus(task.status);
-    setPriority(task.priority);
-    setDue(task.dueAt ? toLocalDateValue(task.dueAt) : "");
-    setProjectId(task.projectId);
-    setPromisedTo(task.promisedToContactId ?? NONE);
-    setEstimate(task.estimateMinutes?.toString() ?? "");
-    setActual(task.actualMinutes?.toString() ?? "");
-  }, [task]);
-
   if (!task) return null;
+  return (
+    <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
+        <TaskForm key={task.id} task={task} projects={projects} contacts={contacts} onClose={onClose} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TaskForm({
+  task,
+  projects,
+  contacts,
+  onClose,
+}: {
+  task: TaskView;
+  projects: ProjectOption[];
+  contacts: ContactOption[];
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? "");
+  const [status, setStatus] = useState<TaskStatus>(task.status);
+  const [priority, setPriority] = useState<TaskPriority>(task.priority);
+  const [due, setDue] = useState(task.dueAt ? toLocalDateValue(task.dueAt) : "");
+  const [projectId, setProjectId] = useState<string | null>(task.projectId);
+  const [promisedTo, setPromisedTo] = useState<string>(task.promisedToContactId ?? NONE);
+  const [estimate, setEstimate] = useState(task.estimateMinutes?.toString() ?? "");
+  const [actual, setActual] = useState(task.actualMinutes?.toString() ?? "");
+  const [pending, startTransition] = useTransition();
 
   const save = (event: FormEvent) => {
     event.preventDefault();
@@ -104,8 +110,6 @@ export function TaskDialog({
     });
 
   return (
-    <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         <form onSubmit={save} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle className="sr-only">Modifier la tâche</DialogTitle>
@@ -195,7 +199,5 @@ export function TaskDialog({
             </div>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
   );
 }

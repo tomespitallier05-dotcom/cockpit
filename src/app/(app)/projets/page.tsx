@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PageContainer, PageHeader, PageIcon } from "@/components/page-header";
-import { PhaseBadge } from "@/components/phase-badge";
 import { ProjectIcon } from "@/components/project-icon";
+import { NewProjectButton } from "@/components/projects/project-buttons";
 import { Reveal } from "@/components/reveal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PROJECT_STATUS_LABELS, PROJECT_TEMPLATES } from "@/lib/project-catalog";
@@ -56,14 +56,13 @@ async function ProjectGrid() {
         );
       })}
       <Reveal index={projects.length}>
-        <div className="flex h-full min-h-44 flex-col items-center justify-center gap-2 rounded-[var(--radius-xl)] border border-dashed border-white/10 p-5 text-center">
+        <NewProjectButton className="flex h-full min-h-44 w-full flex-col items-center justify-center gap-2 rounded-[var(--radius-xl)] border border-dashed border-white/10 p-5 text-center transition-colors hover:border-white/20 hover:bg-white/[0.02]">
           <span className="flex size-9 items-center justify-center rounded-xl bg-white/[0.04] text-subtle">
             <PlusIcon className="size-4" />
           </span>
           <p className="text-[13.5px] font-medium text-muted-foreground">Nouveau projet</p>
           <p className="text-[12px] text-subtle">Nom, icône, couleur et template, en un instant.</p>
-          <PhaseBadge phase={1} className="mt-1" />
-        </div>
+        </NewProjectButton>
       </Reveal>
     </div>
   );

@@ -53,19 +53,25 @@ export function TaskBoard({
   const [due, setDue] = useState<DueChoice>("none");
   const [priority, setPriority] = useState<TaskPriority>("none");
   const [doneOverrides, setDoneOverrides] = useState<Record<string, boolean>>({});
-  const [editing, setEditing] = useState<TaskView | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(focusTaskId ?? null);
   const [showDone, setShowDone] = useState(false);
   const [adding, startAdding] = useTransition();
   const [, startToggle] = useTransition();
   const input = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setDoneOverrides({}), [tasks]);
+  // Fresh server data supersedes optimistic checkbox states, and a new
+  // ?tache= link opens that task (adjusting state during render, not in an effect).
+  const [seen, setSeen] = useState({ tasks, focusTaskId });
+  if (seen.tasks !== tasks || seen.focusTaskId !== focusTaskId) {
+    setSeen({ tasks, focusTaskId });
+    if (seen.tasks !== tasks) setDoneOverrides({});
+    if (seen.focusTaskId !== focusTaskId) setEditingId(focusTaskId ?? null);
+  }
+  const editing = editingId ? (tasks.find((item) => item.id === editingId) ?? null) : null;
+
   useEffect(() => {
     if (autoFocusNew) input.current?.focus();
   }, [autoFocusNew]);
-  useEffect(() => {
-    if (focusTaskId) setEditing(tasks.find((item) => item.id === focusTaskId) ?? null);
-  }, [focusTaskId, tasks]);
 
   const groups = useMemo(() => {
     const now = new Date();
@@ -187,7 +193,7 @@ export function TaskBoard({
             showProject={showProject}
             isDone={(item) => doneOverrides[item.id] ?? item.status === "done"}
             onToggle={toggle}
-            onOpen={setEditing}
+            onOpen={(item) => setEditingId(item.id)}
           />
         ) : null,
       )}
@@ -209,13 +215,13 @@ export function TaskBoard({
               showProject={showProject}
               isDone={(item) => doneOverrides[item.id] ?? true}
               onToggle={toggle}
-              onOpen={setEditing}
+              onOpen={(item) => setEditingId(item.id)}
             />
           ) : null}
         </div>
       ) : null}
 
-      <TaskDialog task={editing} projects={projects} contacts={contacts} onClose={() => setEditing(null)} />
+      <TaskDialog task={editing} projects={projects} contacts={contacts} onClose={() => setEditingId(null)} />
     </div>
   );
 }
