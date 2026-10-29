@@ -1,4 +1,5 @@
 import path from "node:path";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -18,4 +19,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Source maps are uploaded to Sentry only when SENTRY_AUTH_TOKEN, SENTRY_ORG and
+// SENTRY_PROJECT are all set on Vercel; otherwise the build behaves as before.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+  telemetry: false,
+});

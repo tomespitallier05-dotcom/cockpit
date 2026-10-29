@@ -20,10 +20,19 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const finish = useCallback(() => {
-    router.replace(next);
-    router.refresh();
-  }, [router, next]);
+  // During a connector authorization (Claude), the server answers a sign-in with
+  // the URL that resumes it; otherwise go to the requested page.
+  const finish = useCallback(
+    (data?: unknown) => {
+      if (data && typeof data === "object" && "redirect" in data && data.redirect && "url" in data && typeof data.url === "string") {
+        window.location.href = data.url;
+        return;
+      }
+      router.replace(next);
+      router.refresh();
+    },
+    [router, next],
+  );
 
   // Passkey autofill: the browser offers saved passkeys right in the email field.
   useEffect(() => {
@@ -32,7 +41,7 @@ export function LoginForm() {
       if (typeof PublicKeyCredential === "undefined") return;
       if (!(await PublicKeyCredential.isConditionalMediationAvailable?.())) return;
       const result = await authClient.signIn.passkey({ autoFill: true });
-      if (!cancelled && result && !result.error) finish();
+      if (!cancelled && result && !result.error) finish(result.data);
     })();
     return () => {
       cancelled = true;
@@ -51,7 +60,7 @@ export function LoginForm() {
         );
         return;
       }
-      finish();
+      finish(result?.data);
     });
 
   const signInWithPassword = (event: FormEvent) => {
@@ -67,7 +76,7 @@ export function LoginForm() {
         setStep("second-factor");
         return;
       }
-      finish();
+      finish(data);
     });
   };
 
@@ -75,14 +84,14 @@ export function LoginForm() {
     event.preventDefault();
     startTransition(async () => {
       setError(null);
-      const { error } = useBackupCode
+      const { data, error } = useBackupCode
         ? await authClient.twoFactor.verifyBackupCode({ code: code.trim(), trustDevice: true })
         : await authClient.twoFactor.verifyTotp({ code: code.trim(), trustDevice: true });
       if (error) {
         setError(authErrorMessage(error));
         return;
       }
-      finish();
+      finish(data);
     });
   };
 

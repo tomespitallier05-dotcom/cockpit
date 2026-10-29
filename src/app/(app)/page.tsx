@@ -8,6 +8,7 @@ import {
   PhoneIcon,
   SparklesIcon,
 } from "lucide-react";
+import * as Sentry from "@sentry/nextjs";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -137,11 +138,30 @@ async function Greeting() {
 async function BriefLine() {
   const me = await requireUser();
   const today = dayKey(new Date(), me.timezone);
-  let brief = await getBrief(me.workspaceId, today);
-  if (!brief) {
-    const built = await buildBrief(me.workspaceId, { useAi: false });
-    brief = { content: built.content, generatedBy: built.generatedBy, createdAt: new Date() };
-    if (claudeAvailable()) after(() => buildBrief(me.workspaceId, { useAi: true }).catch((error) => console.error("brief", error)));
+  let brief;
+  try {
+    brief = await getBrief(me.workspaceId, today);
+    if (!brief) {
+      const built = await buildBrief(me.workspaceId, { useAi: false });
+      brief = { content: built.content, generatedBy: built.generatedBy, createdAt: new Date() };
+      if (claudeAvailable()) {
+        after(() =>
+          buildBrief(me.workspaceId, { useAi: true }).catch((error) => {
+            console.error("brief", error);
+            Sentry.captureException(error, { tags: { feature: "brief" } });
+          }),
+        );
+      }
+    }
+  } catch (error) {
+    // The brief is a bonus: if it fails, the rest of the home page must still load.
+    console.error("brief", error);
+    Sentry.captureException(error, { tags: { feature: "brief" } });
+    return (
+      <p className="mt-2 max-w-3xl text-[13.5px] leading-relaxed text-muted-foreground">
+        Le brief du jour est momentanément indisponible. Le reste de ta page fonctionne normalement.
+      </p>
+    );
   }
   const { content } = brief;
   const done = content.counts.doneYesterday;

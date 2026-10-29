@@ -49,3 +49,8 @@ next-env.d.ts
 
 # local file uploads (development storage)
 /.uploads
+
+# tests
+/test-results/
+/playwright-report/
+/tests/e2e/.auth/

@@ -302,7 +302,7 @@ export const insight = pgTable(
     appliedAt: timestamp("applied_at", { withTimezone: true }),
     confidence: real("confidence"),
     /** Proposed task details for "action" insights. */
-    meta: jsonb("meta").$type<{ dueDate?: string | null; priority?: string }>().notNull().default({}),
+    meta: jsonb("meta").$type<{ dueDate?: string | null; priority?: string; via?: "pipeline" | "claude" }>().notNull().default({}),
     ...timestamps,
   },
   (t) => [

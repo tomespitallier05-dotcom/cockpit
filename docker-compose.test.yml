@@ -1,0 +1,19 @@
+# Throwaway Postgres for the integration and end-to-end tests (`npm run test:db:up`).
+# pgvector is included because migration 0004 creates the extension. Data lives in
+# memory (tmpfs): `docker compose -f docker-compose.test.yml down` erases everything.
+services:
+  postgres-test:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: cockpit
+      POSTGRES_PASSWORD: cockpit
+      POSTGRES_DB: cockpit_test
+    ports:
+      - "127.0.0.1:54329:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cockpit -d cockpit_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

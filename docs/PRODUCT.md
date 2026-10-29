@@ -144,13 +144,92 @@ projets et templates dans `src/lib/project-catalog.ts`.
 |---|---|---|
 | **0. Fondations** | Repo, auth (passkeys, 2FA, propriétaire unique), schéma complet, design system, sidebar + nav mobile + ⌘K + raccourcis, page Aujourd'hui, pages modules, manifeste PWA | ✅ Fait |
 | **1. Capturer et retrouver** | Création de projets, entrées (note, appel, message, lien, fichier) avec éditeur, Inbox et tri clavier, tâches, contacts, timeline, recherche plein texte, upload, PWA (share target ; capture hors ligne à venir) | ✅ Fait |
-| **2. Comprendre** | Transcription, extraction d'insights et de tâches, recherche sémantique, « Demander » avec sources, brief et debrief d'appel, import de captures d'écran, assistant | ✅ Fait |
-| **3. Piloter** | Objectifs + KPI + check-in, analytics, revue hebdo guidée, bilans automatiques, brief matinal, notifications, Inventaire, pipeline de contenu | ✅ Fait |
-| **4. Automatiser** | Google Calendar et Drive, bot Discord, email entrant, import WhatsApp, erreurs répétées et conseils non appliqués, bilans trimestriels et annuels, partage avec le mentor, export | ✅ Fait |
+| **2. Comprendre** | Transcription, extraction d'insights et de tâches, recherche sémantique, « Demander » avec sources, brief et debrief d'appel, import de captures d'écran, assistant | 🟡 Livré, à éprouver |
+| **3. Piloter** | Objectifs + KPI + check-in, analytics, revue hebdo guidée, bilans automatiques, brief matinal, notifications, Inventaire, pipeline de contenu | 🟡 Livré, à éprouver |
+| **4. Automatiser** | Google Calendar et Drive, bot Discord, email entrant, import WhatsApp, erreurs répétées et conseils non appliqués, bilans trimestriels et annuels, partage avec le mentor, export | 🟡 Livré, à éprouver |
+
+Légende : ✅ fait et utilisé au quotidien · 🟡 le code existe, mais il n'a pas encore
+servi en conditions réelles.
 
 Règle d'origine : une phase ne commence pas avant que la précédente ait servi au
 quotidien pendant 1 à 2 semaines. Le 2026-10-28, à ta demande, les phases 2 à 4 ont
-été livrées d'un bloc : les ajustements se feront à l'usage.
+été livrées d'un bloc : elles n'ont donc jamais passé cette épreuve, d'où le statut 🟡.
+Un « Fait » sans usage réel cachait des défauts (voir ci-dessous).
+
+**Ce que l'on sait de l'état réel des phases 2 à 4 (2026-10-29)**
+
+- **Brief matinal (phase 3)** : il plantait en production, car trois requêtes de
+  `brief.ts` passaient une date brute à postgres.js. Corrigé, et couvert par un test
+  d'intégration sur un vrai Postgres. C'est la seule partie des phases 2 à 4 avec un test
+  automatique dédié ; les parcours de base (connexion, capture, tri, tâche, accueil) sont
+  couverts par Playwright.
+- **Transcription et recherche sémantique (phase 2)** : elles passent par le Vercel AI
+  Gateway et n'ont pas pu être essayées sans ses identifiants. Voir le tableau des variables.
+- **Assistant (phase 2)** : les questions suggérées sont codées en dur et parlent de
+  « mon mentor » (prévu à l'étape 4 du plan).
+- **Email entrant (phase 4)** : le secret peut encore passer dans l'URL (`?token=`) ;
+  prévu à l'étape 2 du plan.
+- **Connecteur MCP (hors phases)** : la découverte OAuth et les outils existent, mais la
+  route `/api/mcp` n'existe pas encore. À terminer ou retirer (étape 6 du plan).
+- **Capture hors ligne (phase 1)** : toujours à venir.
+
+## Variables d'environnement : ce qui dépend de quoi
+
+Sans une variable, la fonction concernée est désactivée, sauf mention « obligatoire ».
+`.env.example` donne le détail de chaque valeur. Sur Vercel, les variables se règlent
+dans Project → Settings → Environment Variables.
+
+| Variable | Obligatoire ? | Ce qui en dépend |
+|---|---|---|
+| `DATABASE_URL` | **Oui en production** (sans elle, toute requête échoue) | Toute l'app. Supabase : URL du transaction pooler (port 6543). En local, vide = base embarquée PGlite. |
+| `DIRECT_DATABASE_URL` | Non | `npm run db:migrate` uniquement (Supabase : session pooler, port 5432). Repli sur `DATABASE_URL`. |
+| `BETTER_AUTH_SECRET` | **Oui** | Connexion, sessions, chiffrement des jetons Google. Au moins 32 caractères. |
+| `BETTER_AUTH_URL` | **Oui en production** | URL publique : retours de connexion, passkeys (le nom de domaine en est la référence), liens du bot Discord et du connecteur. |
+| `OWNER_EMAIL` | **Oui en production** | Seule adresse autorisée à créer le compte propriétaire. Sans elle, la création est refusée en production. |
+| `CRON_SECRET` | **Oui** | `/api/cron/daily` (brief, rappels, bilans automatiques, analyse des entrées modifiées). Vercel l'envoie en `Authorization: Bearer`. Absent : le point d'accès répond 500 et ne fait rien. Faux ou absent côté appelant : 401. |
+| `NEXT_PUBLIC_SENTRY_DSN` | Non (recommandé) | Remontée des erreurs et alerte si la tâche quotidienne échoue ou ne s'exécute pas. Vide = Sentry désactivé. |
+| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Non | Envoi des *source maps* à Sentry au déploiement (lisibilité des erreurs). Les trois ensemble, sinon ignorées. |
+| `ANTHROPIC_API_KEY` | Non | Tout ce que Claude fait : analyse des entrées, insights et tâches proposées, assistant, bilans rédigés, brief réécrit, lecture des captures d'écran. Sans elle : brief et bilans par règles, pas d'assistant ni d'analyse. |
+| `AI_MODEL`, `AI_MONTHLY_BUDGET_USD`, `AI_TRANSCRIPTION_MODEL` | Non | Modèle (défaut `claude-opus-5-5`), plafond mensuel en dollars (défaut 25), modèle de transcription. |
+| `AI_GATEWAY_API_KEY` | Non (automatique sur Vercel) | Recherche sémantique (embeddings) et transcription audio/vidéo. Sur Vercel, l'identité du déploiement suffit ; ailleurs, la clé est nécessaire. |
+| `AI_MOCK` | Non (**jamais en production**) | Remplace toute l'IA par des réponses factices, pour développer et tester sans coût. |
+| `BLOB_STORE_ID` ou `BLOB_READ_WRITE_TOKEN` | Non (nécessaire en production pour les fichiers) | Stockage des pièces jointes. Sans l'un des deux, les fichiers vont dans `./.uploads`, qui ne survit pas sur Vercel. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Non | Notifications push. Les notifications dans l'app marchent sans. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Non | Google Agenda et Drive (lecture seule), liés depuis Réglages. Jamais utilisés pour se connecter. |
+| `DISCORD_APPLICATION_ID`, `DISCORD_PUBLIC_KEY`, `DISCORD_BOT_TOKEN`, `DISCORD_OWNER_ID` | Non | Bot Discord. La clé publique vérifie la signature de chaque requête ; seul `DISCORD_OWNER_ID` peut l'utiliser. |
+| `INBOUND_EMAIL_SECRET` | Non | Email entrant (webhook Postmark). Sans lui, l'adresse refuse tout. |
+| `PGLITE_DIR` | Non | Dossier de la base embarquée en local (défaut `.pglite`). |
+| `TEST_DATABASE_URL` | Tests seulement | Base de test, forcément locale (voir « Tests »). |
+
+## Fiabilité et tests
+
+- **Tâche quotidienne** (`/api/cron/daily`) : chaque étape (brief, rappels, bilans,
+  analyse) tourne dans son propre `try/catch`, pour chaque espace. Une étape qui échoue
+  n'empêche ni les autres ni les autres espaces ; l'erreur part dans Sentry et la
+  réponse est un 500, que Vercel affiche comme un échec. Le passage entier est aussi un
+  *cron monitor* Sentry : une exécution en erreur, ou qui n'arrive jamais, déclenche
+  l'alerte (à activer dans Sentry, voir plus bas).
+- **Pages d'erreur** : `error.tsx` (dans l'app, la barre latérale reste utilisable et la
+  page propose de réessayer), `global-error.tsx` (si le gabarit racine casse) et
+  `not-found.tsx`, tous en français. Le détail technique ne s'affiche jamais : il part
+  dans Sentry avec une référence (`digest`).
+- **Brief sur l'accueil** : s'il échoue, une phrase le dit et le reste de la page se
+  charge.
+- **Tests d'intégration** (`tests/integration/`) : tournent sur un vrai Postgres via
+  postgres.js, comme en production. PGlite ne convient pas ici : il accepte une date brute
+  dans une requête SQL, postgres.js non. `npm run test:db:up` démarre un Postgres avec
+  pgvector (Docker, `docker-compose.test.yml`), `npm run test:db:reset` y applique toutes
+  les migrations, `npm run test:integration` lance les tests. Garde-fou : ils refusent de
+  tourner si `TEST_DATABASE_URL` ne pointe pas vers la machine locale.
+- **Tests de bout en bout** (`tests/e2e/`, Playwright) : 5 parcours : connexion, capture,
+  tri de l'Inbox, tâche, accueil, plus la page 404 et l'accès au cron. Ils démarrent
+  l'app sur le port 3100 contre la base de test, avec `AI_MOCK=1`. Première fois :
+  `npx playwright install chromium`, puis `npm run test:e2e`. `npm test` enchaîne tout.
+- **Activer l'alerte Sentry** : créer un projet Next.js, copier son DSN dans
+  `NEXT_PUBLIC_SENTRY_DSN` sur Vercel, redéployer. Le *cron monitor* « cron-daily »
+  apparaît dans la section Crons de Sentry après le premier passage de la tâche ;
+  vérifier là que les notifications (email) sont actives pour un échec et pour une
+  exécution manquée. Cette partie n'a pas pu être essayée sans compte Sentry.
 
 ## Journal des décisions
 
@@ -173,3 +252,11 @@ quotidien pendant 1 à 2 semaines. Le 2026-10-28, à ta demande, les phases 2 à
   pour se connecter ; jetons OAuth chiffrés en base.
 - **2026-10-28** — Bot Discord en interactions HTTP (pas de processus à héberger),
   email entrant au format Postmark, partage avec le mentor par lien haché et révocable.
+- **2026-10-29** — Phases 2 à 4 repassées de « Fait » à « Livré, à éprouver » : elles
+  n'ont jamais servi, et le brief plantait avec postgres.js (dates brutes dans `sql`).
+  Règle : les dates se comparent avec `gte`/`lte`/`lt` de Drizzle, jamais dans un gabarit `sql`.
+- **2026-10-29** — `CRON_SECRET` obligatoire pour la tâche quotidienne ; le contournement
+  par user-agent `vercel-cron` est supprimé (n'importe qui pouvait le falsifier).
+- **2026-10-29** — Sentry (facultatif, piloté par `NEXT_PUBLIC_SENTRY_DSN`) pour les
+  erreurs et l'alerte de la tâche quotidienne. Tests : Postgres réel pour les requêtes,
+  Playwright pour les parcours ; pas de PGlite dans les tests.

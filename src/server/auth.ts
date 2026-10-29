@@ -11,6 +11,8 @@ import { assertCanCreateOwner, provisionWorkspace } from "./workspace";
 export const auth = betterAuth({
   appName: "Cockpit",
   baseURL: authBaseURL(),
+  // The OAuth provider serves /oauth2/token; the JWT plugin's own /token is not used.
+  disabledPaths: ["/token"],
   database: drizzleAdapter(db, { provider: "pg", schema }),
   emailAndPassword: {
     enabled: true,

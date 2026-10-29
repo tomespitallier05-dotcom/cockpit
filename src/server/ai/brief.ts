@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { dayKey, endOfDayIn, zonedInstant } from "@/lib/dates";
 import { db } from "../db";
@@ -38,7 +38,7 @@ async function gather(workspaceId: string, ownerId: string, timeZone: string) {
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(task)
-      .where(and(eq(task.workspaceId, workspaceId), eq(task.status, "done"), sql`${task.completedAt} >= ${startYesterday}`, lt(task.completedAt, startToday))),
+      .where(and(eq(task.workspaceId, workspaceId), eq(task.status, "done"), gte(task.completedAt, startYesterday), lt(task.completedAt, startToday))),
     db
       .select({ id: insight.id, content: insight.content })
       .from(insight)
@@ -48,11 +48,11 @@ async function gather(workspaceId: string, ownerId: string, timeZone: string) {
     db
       .select({ id: entry.id, title: entry.title, occurredAt: entry.occurredAt })
       .from(entry)
-      .where(and(eq(entry.workspaceId, workspaceId), eq(entry.type, "call"), isNull(entry.deletedAt), sql`${entry.occurredAt} >= ${now}`, lte(entry.occurredAt, endToday))),
+      .where(and(eq(entry.workspaceId, workspaceId), eq(entry.type, "call"), isNull(entry.deletedAt), gte(entry.occurredAt, now), lte(entry.occurredAt, endToday))),
     db
       .select({ name: contact.name, at: contact.nextInteractionAt })
       .from(contact)
-      .where(and(eq(contact.workspaceId, workspaceId), isNull(contact.deletedAt), sql`${contact.nextInteractionAt} >= ${startToday}`, lte(contact.nextInteractionAt, endToday))),
+      .where(and(eq(contact.workspaceId, workspaceId), isNull(contact.deletedAt), gte(contact.nextInteractionAt, startToday), lte(contact.nextInteractionAt, endToday))),
   ]);
 
   let calls: BriefContent["calls"] = callEntries.map((c) => ({ title: c.title ?? "Appel", start: c.occurredAt.toISOString(), contactNames: [], entryId: c.id }));

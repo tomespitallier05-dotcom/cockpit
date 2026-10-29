@@ -36,6 +36,13 @@
       "when": 1793212765920,
       "tag": "0004_phase_2_3_4",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793216625518,
+      "tag": "0005_mcp_connector",
+      "breakpoints": true
     }
   ]
 }
