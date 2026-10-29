@@ -1,6 +1,6 @@
 "use client";
 
-import { FingerprintIcon, KeyRoundIcon, Loader2Icon, ShieldCheckIcon, Trash2Icon } from "lucide-react";
+import { CopyIcon, DownloadIcon, FingerprintIcon, KeyRoundIcon, Loader2Icon, RefreshCwIcon, ShieldCheckIcon, Trash2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import QRCode from "react-qr-code";
@@ -119,11 +119,53 @@ function PasskeysPanel() {
   );
 }
 
-type EnrollStep = { kind: "password" } | { kind: "scan"; totpURI: string; backupCodes: string[] };
+type EnrollStep =
+  | { kind: "password" }
+  | { kind: "scan"; totpURI: string; backupCodes: string[] }
+  | { kind: "codes"; backupCodes: string[] };
+
+/** The one-time backup codes, with copy and download so they really get saved somewhere. */
+function BackupCodes({ codes, title }: { codes: string[]; title: string }) {
+  const text = codes.join("\n");
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Codes copiés");
+    } catch {
+      toast.error("Copie impossible : sélectionne les codes à la main.");
+    }
+  };
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([`Cockpit : codes de secours\n(chaque code ne sert qu'une fois)\n\n${text}\n`], { type: "text/plain" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "cockpit-codes-de-secours.txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <div className="rounded-lg border border-warning/25 bg-warning/[0.06] p-3">
+      <p className="text-[12.5px] font-medium text-warning">{title}</p>
+      <div className="mt-2 grid grid-cols-2 gap-1 font-mono text-[12px] text-muted-foreground select-all">
+        {codes.map((backupCode) => (
+          <span key={backupCode}>{backupCode}</span>
+        ))}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={copy}>
+          <CopyIcon /> Copier
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={download}>
+          <DownloadIcon /> Télécharger
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function TwoFactorPanel({ enabled }: { enabled: boolean }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<"enable" | "disable" | null>(null);
+  const [dialog, setDialog] = useState<"enable" | "disable" | "codes" | null>(null);
   const [step, setStep] = useState<EnrollStep>({ kind: "password" });
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -139,6 +181,15 @@ function TwoFactorPanel({ enabled }: { enabled: boolean }) {
   const submitPassword = (event: FormEvent) => {
     event.preventDefault();
     startTransition(async () => {
+      if (dialog === "codes") {
+        const { data, error } = await authClient.twoFactor.generateBackupCodes({ password });
+        if (error || !data) {
+          toast.error(authErrorMessage(error));
+          return;
+        }
+        setStep({ kind: "codes", backupCodes: data.backupCodes });
+        return;
+      }
       if (dialog === "disable") {
         const { error } = await authClient.twoFactor.disable({ password });
         if (error) {
@@ -201,24 +252,51 @@ function TwoFactorPanel({ enabled }: { enabled: boolean }) {
             </p>
           </div>
         </div>
-        <Button
-          variant={enabled ? "outline" : "default"}
-          className="shrink-0"
-          onClick={() => setDialog(enabled ? "disable" : "enable")}
-        >
-          {enabled ? "Désactiver" : "Activer"}
-        </Button>
+        <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+          <Button
+            variant={enabled ? "outline" : "default"}
+            onClick={() => setDialog(enabled ? "disable" : "enable")}
+          >
+            {enabled ? "Désactiver" : "Activer"}
+          </Button>
+          {enabled ? (
+            <Button variant="ghost" size="sm" onClick={() => setDialog("codes")}>
+              <RefreshCwIcon /> Régénérer les codes de secours
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <Dialog open={dialog !== null} onOpenChange={(open) => (open ? null : close())}>
         <DialogContent className="sm:max-w-md">
-          {step.kind === "password" ? (
+          {step.kind === "codes" ? (
+            <div className="flex flex-col gap-4">
+              <DialogHeader>
+                <DialogTitle>Nouveaux codes de secours</DialogTitle>
+                <DialogDescription>Chaque code ne sert qu&apos;une fois. Les précédents ne fonctionnent plus.</DialogDescription>
+              </DialogHeader>
+              <BackupCodes codes={step.backupCodes} title="Garde-les en lieu sûr, hors de cet appareil" />
+              <DialogFooter>
+                <Button type="button" onClick={close}>
+                  J&apos;ai enregistré les codes
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : step.kind === "password" ? (
             <form onSubmit={submitPassword} className="flex flex-col gap-4">
               <DialogHeader>
                 <DialogTitle>
-                  {dialog === "disable" ? "Désactiver la double authentification" : "Activer la double authentification"}
+                  {dialog === "disable"
+                    ? "Désactiver la double authentification"
+                    : dialog === "codes"
+                      ? "Régénérer les codes de secours"
+                      : "Activer la double authentification"}
                 </DialogTitle>
-                <DialogDescription>Confirme ton mot de passe pour continuer.</DialogDescription>
+                <DialogDescription>
+                  {dialog === "codes"
+                    ? "Confirme ton mot de passe. Les anciens codes de secours cesseront de fonctionner."
+                    : "Confirme ton mot de passe pour continuer."}
+                </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="2fa-password">Mot de passe</Label>
@@ -258,14 +336,7 @@ function TwoFactorPanel({ enabled }: { enabled: boolean }) {
                   Clé manuelle : <code className="font-mono text-muted-foreground select-all">{secret}</code>
                 </p>
               ) : null}
-              <div className="rounded-lg border border-warning/25 bg-warning/[0.06] p-3">
-                <p className="text-[12.5px] font-medium text-warning">Codes de secours — garde-les en lieu sûr</p>
-                <div className="mt-2 grid grid-cols-2 gap-1 font-mono text-[12px] text-muted-foreground select-all">
-                  {step.backupCodes.map((backupCode) => (
-                    <span key={backupCode}>{backupCode}</span>
-                  ))}
-                </div>
-              </div>
+              <BackupCodes codes={step.backupCodes} title="Codes de secours : garde-les en lieu sûr" />
               <div className="flex flex-col gap-2">
                 <Label htmlFor="2fa-code">Code à 6 chiffres</Label>
                 <Input

@@ -43,6 +43,13 @@
       "when": 1793216625518,
       "tag": "0005_mcp_connector",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793314565920,
+      "tag": "0006_rate_limit",
+      "breakpoints": true
     }
   ]
 }

@@ -14,10 +14,11 @@
     "db:studio": "drizzle-kit studio",
     "auth:schema": "npx --yes auth@1.7.14 generate --config scripts/better-auth.config.ts --output src/server/db/schema/auth.ts -y",
     "dev:test": "node scripts/dev-test.mjs",
-    "test": "npm run test:db:reset && npm run test:integration && npm run test:db:reset && npm run test:e2e",
+    "test": "npm run test:unit && npm run test:db:reset && npm run test:integration && npm run test:db:reset && npm run test:e2e",
     "test:db:up": "docker compose -f docker-compose.test.yml up -d --wait",
     "test:db:down": "docker compose -f docker-compose.test.yml down",
     "test:db:reset": "node scripts/test-db.mjs",
+    "test:unit": "node --import tsx --test \"tests/unit/*.test.ts\"",
     "test:integration": "node --conditions=react-server --import tsx --test \"tests/integration/*.test.ts\"",
     "test:e2e": "playwright test"
   },

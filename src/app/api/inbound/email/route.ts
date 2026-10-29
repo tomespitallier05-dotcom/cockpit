@@ -7,7 +7,10 @@ export const maxDuration = 60;
 /**
  * Inbound email (Postmark inbound webhook format): forward anything to your
  * Cockpit address and it lands in the Inbox, attachments included. The webhook
- * URL carries INBOUND_EMAIL_SECRET, as ?token= or as the Basic auth password.
+ * is protected by INBOUND_EMAIL_SECRET, sent as the HTTP Basic auth password
+ * (https://inbound:SECRET@host/api/inbound/email, which Postmark turns into an
+ * Authorization header). A ?token= in the URL is refused on purpose: URLs end up in
+ * logs, browser history and referrers, headers do not.
  */
 const payload = z.object({
   MessageID: z.string().optional(),
@@ -27,8 +30,6 @@ const payload = z.object({
 function authorized(request: Request) {
   const secret = process.env.INBOUND_EMAIL_SECRET;
   if (!secret) return false;
-  const token = new URL(request.url).searchParams.get("token");
-  if (token && safeEqual(token, secret)) return true;
   const header = request.headers.get("authorization");
   if (header?.startsWith("Basic ")) {
     const password = Buffer.from(header.slice(6), "base64").toString().split(":").slice(1).join(":");

@@ -197,9 +197,43 @@ dans Project → Settings → Environment Variables.
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Non | Notifications push. Les notifications dans l'app marchent sans. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Non | Google Agenda et Drive (lecture seule), liés depuis Réglages. Jamais utilisés pour se connecter. |
 | `DISCORD_APPLICATION_ID`, `DISCORD_PUBLIC_KEY`, `DISCORD_BOT_TOKEN`, `DISCORD_OWNER_ID` | Non | Bot Discord. La clé publique vérifie la signature de chaque requête ; seul `DISCORD_OWNER_ID` peut l'utiliser. |
-| `INBOUND_EMAIL_SECRET` | Non | Email entrant (webhook Postmark). Sans lui, l'adresse refuse tout. |
+| `INBOUND_EMAIL_SECRET` | Non | Email entrant (webhook Postmark). Sans lui, l'adresse refuse tout. Le secret ne passe **que** en authentification Basic : `https://inbound:SECRET@domaine/api/inbound/email` (un `?token=` est refusé). |
+| `TRUSTED_ORIGINS` | Non | Origines supplémentaires autorisées à appeler l'authentification (liste séparée par des virgules, `https://…`). Les previews Vercel sont ajoutées toutes seules. |
+| `CSP_REPORT_ONLY` | Non | `1` : la CSP est seulement signalée dans la console du navigateur, sans rien bloquer (pour un premier déploiement prudent). |
 | `PGLITE_DIR` | Non | Dossier de la base embarquée en local (défaut `.pglite`). |
 | `TEST_DATABASE_URL` | Tests seulement | Base de test, forcément locale (voir « Tests »). |
+
+## Sécurité
+
+- **En-têtes** (`next.config.ts`) sur toutes les pages : CSP, `X-Frame-Options: DENY`,
+  `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS en production.
+- **CSP sans nonce**, volontairement : un nonce oblige chaque page à être rendue à la
+  demande, ce qui est incompatible avec `cacheComponents` et le préchargement partiel.
+  La politique garde donc `'unsafe-inline'` pour scripts et styles, et limite le reste :
+  aucun script étranger, aucun cadre, aucun `<object>`, appels réseau seulement vers
+  Cockpit, Vercel Blob (envois directs) et Sentry. Si un nouveau service externe est
+  ajouté (images, API appelée depuis le navigateur), il faut l'ajouter à la CSP.
+  Pas de `form-action` : il bloquerait la redirection d'un formulaire vers un autre
+  domaine (consentement du connecteur Claude).
+- **Limitation de débit** (Better Auth, stockée dans la table `rate_limit`) : par IP et
+  par route. Connexion 10 essais / 15 min, création de compte 5 / h, codes 2FA et codes de
+  secours 8 / 15 min, enregistrement du connecteur 20 / h. Une fenêtre repart du dernier
+  essai : insister garde la porte fermée.
+- **Origines de confiance** : l'URL de `BETTER_AUTH_URL`, les URLs de preview que Vercel
+  injecte (`VERCEL_URL`, `VERCEL_BRANCH_URL`, seulement sur un build de preview) et
+  `TRUSTED_ORIGINS`. Jamais de joker. Les passkeys ne marchent pas sur une preview (elles
+  sont liées au domaine de production).
+- **Rendu du texte de l'IA** (`markdown.tsx`) : audité, il ne produit que des éléments
+  React, jamais de HTML brut ; les seuls liens sont les citations vers `/entrees/<id>`.
+  Un test (`tests/unit/security.test.ts`) le vérifie avec des entrées piégées.
+- **Fichiers privés** (`/api/fichiers/[id]`) : le type MIME vient de celui qui envoie le
+  fichier (ou de l'expéditeur d'un email). Seuls les formats qui ne s'exécutent pas
+  (PNG, JPEG, GIF, WebP, AVIF, PDF, audio et vidéo courants) s'ouvrent dans le navigateur ;
+  tout le reste (SVG, HTML…) est téléchargé comme octets opaques, et une CSP `sandbox`
+  accompagne chaque fichier affiché.
+- **Codes de secours 2FA** : affichés avec « Copier » et « Télécharger » à l'activation,
+  et régénérables depuis Réglages > Sécurité (mot de passe demandé, les anciens codes
+  cessent de marcher).
 
 ## Fiabilité et tests
 
@@ -225,6 +259,9 @@ dans Project → Settings → Environment Variables.
   tri de l'Inbox, tâche, accueil, plus la page 404 et l'accès au cron. Ils démarrent
   l'app sur le port 3100 contre la base de test, avec `AI_MOCK=1`. Première fois :
   `npx playwright install chromium`, puis `npm run test:e2e`. `npm test` enchaîne tout.
+  `tests/e2e/securite.spec.ts` couvre les en-têtes, l'absence de violation de CSP sur les
+  pages principales, la limitation de débit, l'email entrant et les codes de secours.
+  `npm run test:unit` (sans base) vérifie le rendu markdown et le service des fichiers.
 - **Activer l'alerte Sentry** : créer un projet Next.js, copier son DSN dans
   `NEXT_PUBLIC_SENTRY_DSN` sur Vercel, redéployer. Le *cron monitor* « cron-daily »
   apparaît dans la section Crons de Sentry après le premier passage de la tâche ;
@@ -260,3 +297,7 @@ dans Project → Settings → Environment Variables.
 - **2026-10-29** — Sentry (facultatif, piloté par `NEXT_PUBLIC_SENTRY_DSN`) pour les
   erreurs et l'alerte de la tâche quotidienne. Tests : Postgres réel pour les requêtes,
   Playwright pour les parcours ; pas de PGlite dans les tests.
+- **2026-10-30** — Rate limiting Better Auth stocké en base (table `rate_limit`, migration
+  0006) : en mémoire il ne limite rien sur Vercel. CSP sans nonce (voir « Sécurité »).
+  Email entrant : secret en Basic uniquement. Les fichiers non sûrs (SVG, HTML) ne
+  s'affichent plus jamais en ligne.

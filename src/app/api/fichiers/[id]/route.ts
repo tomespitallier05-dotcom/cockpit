@@ -1,11 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { servedFile } from "@/lib/safe-file";
 import { db } from "@/server/db";
 import { attachment } from "@/server/db/schema";
 import { getRequestUser } from "@/server/session";
 import { readStoredFile } from "@/server/storage";
-
-const INLINE_KINDS = new Set(["image", "pdf", "audio", "video"]);
 
 /** Streams a private file to its owner. `?download=1` forces a download. */
 export async function GET(request: Request, { params }: RouteContext<"/api/fichiers/[id]">) {
@@ -24,15 +23,19 @@ export async function GET(request: Request, { params }: RouteContext<"/api/fichi
   const file = await readStoredFile(row.storageKey);
   if (!file) return NextResponse.json({ error: "Fichier manquant." }, { status: 404 });
 
-  const download = new URL(request.url).searchParams.has("download") || !INLINE_KINDS.has(row.kind);
+  // The type comes from the uploader (or from an email's sender): never serve it as-is.
+  const served = servedFile(row.mimeType, new URL(request.url).searchParams.has("download"));
+  const download = served.disposition === "attachment";
   return new Response(file.body, {
     headers: {
-      "Content-Type": row.mimeType,
+      "Content-Type": served.contentType,
       ...(file.size ? { "Content-Length": String(file.size) } : {}),
       "Content-Disposition": `${download ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(row.fileName)}`,
       // Personal files never sit in the browser cache: every view re-checks the session.
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
+      // A file opened on its own page must never run code in the app's origin.
+      ...(served.sandbox ? { "Content-Security-Policy": "default-src 'none'; sandbox" } : {}),
     },
   });
 }

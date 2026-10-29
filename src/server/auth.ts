@@ -3,7 +3,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
-import { authBaseURL, authPlugins } from "./auth-plugins";
+import { authBaseURL, authPlugins, authRateLimitRules, trustedOrigins } from "./auth-plugins";
 import { db } from "./db";
 import * as schema from "./db/schema";
 import { assertCanCreateOwner, provisionWorkspace } from "./workspace";
@@ -23,7 +23,17 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24,
     cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
-  rateLimit: { enabled: true },
+  // Stored in the database: on Vercel every request may land on a different instance, so an
+  // in-memory counter would never reach its limit. Keys are IP + path. A window restarts from
+  // the last allowed attempt, so keeping on trying keeps the door shut.
+  rateLimit: {
+    enabled: true,
+    storage: "database",
+    window: 60,
+    max: 100,
+    customRules: authRateLimitRules,
+  },
+  trustedOrigins: trustedOrigins(),
   // Google is linked to the owner's account for Calendar and Drive, never used to sign in.
   socialProviders: process.env.GOOGLE_CLIENT_ID
     ? {

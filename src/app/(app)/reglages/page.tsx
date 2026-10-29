@@ -126,6 +126,16 @@ async function AiSettings() {
   );
 }
 
+/** https://inbound:SECRET@host/api/inbound/email: Postmark sends the secret as Basic auth. */
+function inboundWebhookUrl(base: string) {
+  try {
+    const url = new URL("/api/inbound/email", base);
+    return `${url.protocol}//inbound:SECRET@${url.host}${url.pathname}`;
+  } catch {
+    return "https://inbound:SECRET@ton-domaine/api/inbound/email";
+  }
+}
+
 async function Integrations() {
   const me = await requireUser();
   const google = await googleAccount(me.id).catch(() => null);
@@ -164,8 +174,8 @@ async function Integrations() {
       <Row icon={<MailIcon />} title="Email entrant" status={emailReady ? "Actif" : "À configurer"} ok={emailReady}>
         {emailReady
           ? "Transfère n'importe quel email à ton adresse de réception : il arrive dans l'Inbox, pièces jointes comprises."
-          : "Avec Postmark (réception d'emails) : définis INBOUND_EMAIL_SECRET, puis colle cette URL de webhook en remplaçant SECRET par sa valeur."}
-        <CopyValue value={`${base}/api/inbound/email?token=SECRET`} label="l'URL du webhook" />
+          : "Avec Postmark (réception d'emails) : définis INBOUND_EMAIL_SECRET, puis colle cette URL de webhook en remplaçant SECRET par sa valeur. Le secret voyage dans l'en-tête d'authentification, jamais dans le chemin."}
+        <CopyValue value={inboundWebhookUrl(base)} label="l'URL du webhook" />
       </Row>
       <Row icon={<Share2Icon />} title="Partage depuis le téléphone" status="Actif" ok>
         Sur Android : installe Cockpit (menu → Installer l&apos;application), puis Partager → Cockpit depuis n&apos;importe quelle app.
