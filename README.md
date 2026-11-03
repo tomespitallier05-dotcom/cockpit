@@ -18,7 +18,7 @@ npm run dev
 ```
 
 Ouvre http://localhost:3000 : au premier lancement, l'app te demande de créer le
-premier compte, puis crée ton espace et tes trois projets de départ. Ensuite,
+premier compte, puis crée ton espace (vide : aucun projet, tu crées les tiens). Ensuite,
 chacun peut créer son propre compte sur `/inscription` : chaque compte a son espace privé.
 
 Sans `DATABASE_URL`, l'app utilise **PGlite**, un Postgres embarqué stocké dans

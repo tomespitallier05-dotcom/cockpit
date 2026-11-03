@@ -1,5 +1,5 @@
 // Shared, framework-free definitions for projects. Imported by both the server
-// (seeding, validation) and the client (pickers, badges), so no React here.
+// (validation) and the client (pickers, badges), so no React here.
 
 export const PROJECT_COLORS = {
   blue: "#5b8cff",
@@ -83,33 +83,6 @@ export const PROJECT_TEMPLATES = {
 >;
 
 export type ProjectTemplate = keyof typeof PROJECT_TEMPLATES;
-
-/** Projects created for a brand-new workspace, so the app never starts empty. */
-export const STARTER_PROJECTS: {
-  name: string;
-  slug: string;
-  description: string;
-  template: ProjectTemplate;
-}[] = [
-  {
-    name: "Achat-revente",
-    slug: "achat-revente",
-    description: "Sourcing, ventes et marges.",
-    template: "resale",
-  },
-  {
-    name: "Instagram",
-    slug: "instagram",
-    description: "Idées, tournages, publications et statistiques.",
-    template: "content",
-  },
-  {
-    name: "Business",
-    slug: "business",
-    description: "Stratégie, décisions et objectifs.",
-    template: "business",
-  },
-];
 
 export function slugify(input: string): string {
   return input
