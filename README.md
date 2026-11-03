@@ -18,8 +18,8 @@ npm run dev
 ```
 
 Ouvre http://localhost:3000 : au premier lancement, l'app te demande de créer le
-compte propriétaire (le seul compte possible), puis crée ton espace et tes trois
-projets de départ.
+premier compte, puis crée ton espace et tes trois projets de départ. Ensuite,
+chacun peut créer son propre compte sur `/inscription` : chaque compte a son espace privé.
 
 Sans `DATABASE_URL`, l'app utilise **PGlite**, un Postgres embarqué stocké dans
 `./.pglite` : aucune installation de base de données n'est nécessaire.
@@ -52,8 +52,9 @@ relance `npm run dev`.
    - `DATABASE_URL` : l'URL du transaction pooler ;
    - `BETTER_AUTH_SECRET` : un secret aléatoire différent de celui du local ;
    - `BETTER_AUTH_URL` : l'URL publique, par exemple `https://cockpit.vercel.app` ;
-   - `OWNER_EMAIL` : ton adresse (obligatoire en production, pour que personne d'autre
-     ne puisse réclamer l'espace).
+   - `SIGNUPS_DISABLED=1` (optionnel) : ferme les inscriptions ;
+   - `AI_MEMBER_BUDGET_USD` (optionnel) : budget IA des comptes autres que le premier
+     (0 par défaut : l'IA reste réservée au premier compte).
 4. Déploie, ouvre l'URL, crée ton compte, puis ajoute une passkey et active la
    double authentification dans **Réglages → Sécurité**.
 
@@ -87,7 +88,7 @@ avec `AI_MOCK=1` (réponses déterministes, aucun coût).
 src/
   app/
     (app)/            pages connectées : Aujourd'hui, Inbox, Tâches, Projets…
-    (auth)/           connexion et création du compte propriétaire
+    (auth)/           connexion, inscription et création du premier compte
     api/auth/         routes Better Auth
   components/
     shell/            sidebar, navigation mobile, palette ⌘K, raccourcis
@@ -95,7 +96,7 @@ src/
   lib/                catalogue des projets, formatage, animations, client d'auth
   server/
     db/schema/        schéma Drizzle (auth.ts est généré)
-    auth.ts           configuration Better Auth (propriétaire unique)
+    auth.ts           configuration Better Auth (inscriptions ouvertes, un espace par compte)
     session.ts        getCurrentUser() : point d'entrée de toute lecture de données
     queries.ts        lectures, toujours restreintes à l'espace de l'utilisateur
   proxy.ts            redirection vers /login sans cookie de session

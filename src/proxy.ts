@@ -1,7 +1,7 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/setup", "/partage"];
+const PUBLIC_PATHS = ["/login", "/setup", "/inscription", "/partage"];
 
 /**
  * Optimistic gate: bounces visitors without a session cookie to /login.

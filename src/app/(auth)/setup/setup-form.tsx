@@ -1,6 +1,7 @@
 "use client";
 
 import { FingerprintIcon, Loader2Icon } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,15 @@ import { AuthCard, FormError } from "../auth-card";
 
 const MIN_PASSWORD = 12;
 
-export function SetupForm() {
+type Copy = { title: string; description: string; submit: string };
+
+const OWNER_COPY: Copy = {
+  title: "Bienvenue dans Cockpit",
+  description: "Crée le premier compte de cet espace.",
+  submit: "Créer mon espace",
+};
+
+export function SetupForm({ copy = OWNER_COPY }: { copy?: Copy }) {
   const router = useRouter();
   const [step, setStep] = useState<"account" | "passkey">("account");
   const [name, setName] = useState("");
@@ -84,10 +93,7 @@ export function SetupForm() {
   }
 
   return (
-    <AuthCard
-      title="Bienvenue dans Cockpit"
-      description="Crée ton compte propriétaire. C'est le seul compte de cet espace : personne d'autre ne pourra s'inscrire."
-    >
+    <AuthCard title={copy.title} description={copy.description}>
       <form onSubmit={createAccount} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="name">Prénom et nom</Label>
@@ -131,9 +137,17 @@ export function SetupForm() {
         <FormError message={error} />
         <Button type="submit" size="lg" className="h-10" disabled={pending}>
           {pending ? <Loader2Icon className="animate-spin" /> : null}
-          Créer mon espace
+          {copy.submit}
         </Button>
       </form>
+      {copy.submit !== OWNER_COPY.submit ? (
+        <p className="mt-5 text-center text-[12.5px] text-subtle">
+          Déjà un compte ?{" "}
+          <Link href="/login" className="text-foreground underline-offset-4 hover:underline">
+            Se connecter
+          </Link>
+        </p>
+      ) : null}
     </AuthCard>
   );
 }

@@ -3,7 +3,7 @@ import { cacheLife } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "./auth";
-import { findWorkspaceByOwner } from "./workspace";
+import { findWorkspaceByOwner, provisionWorkspace } from "./workspace";
 
 export type CurrentUser = {
   id: string;
@@ -15,10 +15,18 @@ export type CurrentUser = {
   timezone: string;
 };
 
+/** If sign-up was interrupted before the workspace existed, finish it instead of locking the user out. */
+async function ensureWorkspace(user: { id: string; name: string }) {
+  const found = await findWorkspaceByOwner(user.id);
+  if (found) return found;
+  await provisionWorkspace(user);
+  return findWorkspaceByOwner(user.id);
+}
+
 async function resolveUser(requestHeaders: Headers): Promise<CurrentUser | null> {
   const session = await auth.api.getSession({ headers: requestHeaders });
   if (!session) return null;
-  const ws = await findWorkspaceByOwner(session.user.id);
+  const ws = await ensureWorkspace(session.user);
   if (!ws) return null;
   return {
     id: session.user.id,
@@ -57,7 +65,7 @@ export async function getCurrentUser(): Promise<CurrentUser> {
     redirect("/login");
   }
 
-  const ws = await findWorkspaceByOwner(session.user.id);
+  const ws = await ensureWorkspace(session.user);
   if (!ws) {
     redirect("/login");
   }

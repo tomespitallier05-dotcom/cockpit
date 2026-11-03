@@ -11,7 +11,7 @@ import { newStorageKey, storeFile } from "./storage";
 
 /**
  * Captures that arrive without a browser session (Discord bot, inbound email,
- * share target): they belong to the single owner and land in the Inbox.
+ * share target): they belong to the deployment owner (the first account) and land in that Inbox. Other accounts are never reachable from here.
  */
 export async function ownerContext(): Promise<CurrentUser | null> {
   const [row] = await db

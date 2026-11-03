@@ -1,6 +1,7 @@
 "use client";
 
 import { FingerprintIcon, Loader2Icon } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -178,6 +179,12 @@ export function LoginForm() {
           Se connecter
         </Button>
       </form>
+      <p className="mt-5 text-center text-[12.5px] text-subtle">
+        Pas encore de compte ?{" "}
+        <Link href="/inscription" className="text-foreground underline-offset-4 hover:underline">
+          Créer un compte
+        </Link>
+      </p>
     </AuthCard>
   );
 }

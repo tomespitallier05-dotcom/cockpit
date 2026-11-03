@@ -1,8 +1,8 @@
 import "server-only";
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, sql } from "drizzle-orm";
 import { db } from "../db";
-import { aiUsage } from "../db/schema";
-import { MONTHLY_BUDGET_USD } from "./config";
+import { aiUsage, workspace } from "../db/schema";
+import { MEMBER_BUDGET_USD, MONTHLY_BUDGET_USD } from "./config";
 
 type Feature = (typeof aiUsage.$inferInsert)["feature"];
 
@@ -42,10 +42,25 @@ export async function monthSpend(workspaceId: string) {
   return { usd: Number(row?.micros ?? 0) / 1_000_000, calls: Number(row?.calls ?? 0) };
 }
 
+/**
+ * The first workspace (the deployment's owner) gets AI_MONTHLY_BUDGET_USD. Accounts created
+ * through open sign-up use the same server API key, so they get AI_MEMBER_BUDGET_USD
+ * instead (default 0: AI features stay off until you raise it).
+ */
+async function budgetFor(workspaceId: string) {
+  const [first] = await db.select({ id: workspace.id }).from(workspace).orderBy(asc(workspace.createdAt)).limit(1);
+  return first?.id === workspaceId ? MONTHLY_BUDGET_USD : MEMBER_BUDGET_USD;
+}
+
 /** Refuses new Claude calls once the month's budget is spent. */
 export async function assertBudget(workspaceId: string) {
+  const budget = await budgetFor(workspaceId);
   const { usd } = await monthSpend(workspaceId);
-  if (usd >= MONTHLY_BUDGET_USD) {
-    throw new Error(`Budget IA du mois atteint (${MONTHLY_BUDGET_USD} $). Modifie AI_MONTHLY_BUDGET_USD pour l'augmenter.`);
+  if (usd >= budget) {
+    throw new Error(
+      budget > 0
+        ? `Budget IA du mois atteint (${budget} $).`
+        : "Les fonctions IA ne sont pas activées sur ce compte.",
+    );
   }
 }

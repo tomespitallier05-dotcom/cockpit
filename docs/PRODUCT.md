@@ -76,7 +76,7 @@ Raccourci iOS. Enregistrer un appel suppose le consentement de l'interlocuteur
 
 Tables métier (`src/server/db/schema/app.ts`), toutes portant `workspace_id` :
 
-- `workspace` — un par propriétaire, fuseau horaire.
+- `workspace` — un par compte (index unique sur `owner_id`), fuseau horaire.
 - `project` — nom, slug, icône, couleur, template (`resale` | `content` |
   `business` | `blank`), statut (`active` | `paused` | `done` | `archived`).
 - `entry` — l'objet universel : type, contenu (JSON de l'éditeur), `plain_text`,
@@ -117,7 +117,7 @@ Bot Discord    ┘     4. Validation dans l'Inbox                     Analytics
   (`use cache: private`) est le seul point d'entrée vers les données de l'utilisateur ;
   chaque requête de `queries.ts` le résout elle-même.
 - **Accès** : `proxy.ts` redirige sans cookie ; la session est vérifiée au plus
-  près des données. Compte propriétaire unique, verrouillé par `OWNER_EMAIL` en production.
+  près des données. Inscriptions ouvertes (`/inscription`, fermables avec `SIGNUPS_DISABLED=1`) ; un espace par compte, toutes les données portent `workspace_id`.
 - **Base** : Postgres (Supabase en production, PGlite en local).
 - **IA** (`src/server/ai/`) : Claude via le SDK Anthropic (`claude-opus-5-5` par défaut,
   effort réglé par usage : bas pour l'extraction, moyen pour l'assistant, haut pour
@@ -185,7 +185,8 @@ dans Project → Settings → Environment Variables.
 | `DIRECT_DATABASE_URL` | Non | `npm run db:migrate` uniquement (Supabase : session pooler, port 5432). Repli sur `DATABASE_URL`. |
 | `BETTER_AUTH_SECRET` | **Oui** | Connexion, sessions, chiffrement des jetons Google. Au moins 32 caractères. |
 | `BETTER_AUTH_URL` | **Oui en production** | URL publique : retours de connexion, passkeys (le nom de domaine en est la référence), liens du bot Discord et du connecteur. |
-| `OWNER_EMAIL` | **Oui en production** | Seule adresse autorisée à créer le compte propriétaire. Sans elle, la création est refusée en production. |
+| `SIGNUPS_DISABLED` | Non | `1` ferme les inscriptions. Par défaut, tout le monde peut créer un compte (un espace privé par compte). |
+| `AI_MEMBER_BUDGET_USD` | Non | Budget IA mensuel des comptes autres que le premier (ils partagent la clé API du serveur). 0 par défaut : IA désactivée pour eux. |
 | `CRON_SECRET` | **Oui** | `/api/cron/daily` (brief, rappels, bilans automatiques, analyse des entrées modifiées). Vercel l'envoie en `Authorization: Bearer`. Absent : le point d'accès répond 500 et ne fait rien. Faux ou absent côté appelant : 401. |
 | `NEXT_PUBLIC_SENTRY_DSN` | Non (recommandé) | Remontée des erreurs et alerte si la tâche quotidienne échoue ou ne s'exécute pas. Vide = Sentry désactivé. |
 | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Non | Envoi des *source maps* à Sentry au déploiement (lisibilité des erreurs). Les trois ensemble, sinon ignorées. |

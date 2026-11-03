@@ -1,4 +1,4 @@
-// The owner account created by auth.setup.ts. OWNER_EMAIL in playwright.config.ts must match.
+// The owner account created by auth.setup.ts.
 export const E2E_USER = {
   name: "Camille Test",
   firstName: "Camille",

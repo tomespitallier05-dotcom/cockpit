@@ -15,6 +15,9 @@ export const TRANSCRIPTION_MODEL = process.env.AI_TRANSCRIPTION_MODEL || "eleven
 /** Monthly ceiling on Claude spend, in US dollars. */
 export const MONTHLY_BUDGET_USD = Number(process.env.AI_MONTHLY_BUDGET_USD || 25);
 
+/** Budget for accounts other than the first one (they share the server's API key). 0 = AI off. */
+export const MEMBER_BUDGET_USD = Number(process.env.AI_MEMBER_BUDGET_USD || 0);
+
 export function aiMock() {
   return process.env.AI_MOCK === "1";
 }

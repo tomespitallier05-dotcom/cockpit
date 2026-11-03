@@ -51,7 +51,6 @@ export default defineConfig({
       DIRECT_DATABASE_URL: databaseUrl,
       BETTER_AUTH_URL: BASE_URL,
       BETTER_AUTH_SECRET: "e2e-secret-e2e-secret-e2e-secret-e2e-1",
-      OWNER_EMAIL: "camille@cockpit.test",
       CRON_SECRET: "e2e-cron-secret",
       AI_MOCK: "1",
       NEXT_PUBLIC_SENTRY_DSN: "",

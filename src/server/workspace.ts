@@ -5,37 +5,35 @@ import { db } from "./db";
 import { project, user, workspace } from "./db/schema";
 
 /**
- * Cockpit is a single-owner app: the first account becomes the owner, and no
- * further sign-ups are accepted. OWNER_EMAIL pins which address may claim it,
- * and is required in production so a fresh deployment can't be claimed by a stranger.
+ * Anyone may create an account: each account gets its own workspace, and every row of
+ * data carries that workspace's id. Set SIGNUPS_DISABLED=1 to close registration again
+ * (existing accounts keep working).
  */
-export async function assertCanCreateOwner(email: string): Promise<string | null> {
-  const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
-  if (process.env.NODE_ENV === "production" && !ownerEmail) {
-    return "OWNER_EMAIL doit être défini en production avant de créer le compte.";
-  }
-  if (ownerEmail && email.trim().toLowerCase() !== ownerEmail) {
-    return "Cette adresse n'est pas autorisée à créer le compte propriétaire.";
-  }
-  const [{ users }] = await db.select({ users: count() }).from(user);
-  if (users > 0) {
-    return "Le compte propriétaire existe déjà.";
+export async function assertCanSignUp(): Promise<string | null> {
+  if (process.env.SIGNUPS_DISABLED === "1") {
+    return "Les inscriptions sont fermées pour le moment.";
   }
   return null;
 }
 
+/** True once the first account exists; before that, /setup creates it. */
 export async function hasOwner(): Promise<boolean> {
   const [{ users }] = await db.select({ users: count() }).from(user);
   return users > 0;
 }
 
-/** Creates the workspace and the starter projects, so the app never opens empty. */
+/**
+ * Creates the user's workspace and the starter projects, so the app never opens empty.
+ * Safe to call twice: one workspace per user (unique owner_id), the second call does nothing.
+ */
 export async function provisionWorkspace(owner: { id: string; name: string }) {
   await db.transaction(async (tx) => {
     const [ws] = await tx
       .insert(workspace)
       .values({ name: `Espace de ${owner.name.split(" ")[0] || owner.name}`, ownerId: owner.id })
+      .onConflictDoNothing({ target: workspace.ownerId })
       .returning({ id: workspace.id });
+    if (!ws) return;
 
     await tx.insert(project).values(
       STARTER_PROJECTS.map((starter, position) => {

@@ -50,6 +50,13 @@
       "when": 1793314565920,
       "tag": "0006_rate_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793736529806,
+      "tag": "0007_multi_user_workspace",
+      "breakpoints": true
     }
   ]
 }

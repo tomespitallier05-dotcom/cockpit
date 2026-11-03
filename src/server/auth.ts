@@ -6,7 +6,7 @@ import { nextCookies } from "better-auth/next-js";
 import { authBaseURL, authPlugins, authRateLimitRules, trustedOrigins } from "./auth-plugins";
 import { db } from "./db";
 import * as schema from "./db/schema";
-import { assertCanCreateOwner, provisionWorkspace } from "./workspace";
+import { assertCanSignUp, provisionWorkspace } from "./workspace";
 
 export const auth = betterAuth({
   appName: "Cockpit",
@@ -61,7 +61,7 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async (newUser) => {
-          const refusal = await assertCanCreateOwner(newUser.email);
+          const refusal = await assertCanSignUp();
           if (refusal) {
             throw new APIError("FORBIDDEN", { message: refusal });
           }

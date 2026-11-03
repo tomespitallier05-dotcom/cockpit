@@ -22,7 +22,7 @@ import { user } from "./auth";
 
 /*
  * Domain schema. Rules that keep the data healthy for years:
- * - every row carries `workspaceId` (single owner today, multi-tenant ready);
+ * - every row carries `workspaceId` (one workspace per account);
  * - `occurredAt` (when it happened) is distinct from `createdAt` (when it was saved);
  * - user-facing rows are soft-deleted through `deletedAt`;
  * - enums are typed text columns so new values never need a type migration.
@@ -64,15 +64,20 @@ const workspaceRef = () =>
 // Workspace & projects
 // ---------------------------------------------------------------------------
 
-export const workspace = pgTable("workspace", {
-  id: id(),
-  name: text("name").notNull(),
-  ownerId: text("owner_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  timezone: text("timezone").notNull().default("Europe/Paris"),
-  ...timestamps,
-});
+export const workspace = pgTable(
+  "workspace",
+  {
+    id: id(),
+    name: text("name").notNull(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    timezone: text("timezone").notNull().default("Europe/Paris"),
+    ...timestamps,
+  },
+  // One workspace per account: every other table is scoped through workspace_id.
+  (t) => [uniqueIndex("workspace_owner_idx").on(t.ownerId)],
+);
 
 export const project = pgTable(
   "project",
